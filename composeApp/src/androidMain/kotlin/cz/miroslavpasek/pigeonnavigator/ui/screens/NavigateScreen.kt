@@ -13,10 +13,12 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.map.MapStyleProvider
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
 
 private const val DEFAULT_ZOOM = 10.5
 private val PRAGUE = LatLng(50.0755, 14.4378)
@@ -29,11 +31,14 @@ fun NavigateScreen(
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val mapStyleProvider = remember { MapStyleProvider() }
 
     // Initialize MapLibre once
     MapLibre.getInstance(context)
 
     var didSetInitialCamera by remember { mutableStateOf(false) }
+    var didLoadStyle by remember { mutableStateOf(false) }
+    val styleJson = remember(mapStyleProvider) { mapStyleProvider.getStyleJson() }
 
     val mapView = remember {
         MapView(context).apply {
@@ -58,25 +63,27 @@ fun NavigateScreen(
         factory = { mapView },
         update = { mv ->
             mv.getMapAsync { map ->
-                val styleUri = "asset://style.json"
-                map.setStyle(styleUri) { style ->
-                    map.uiSettings.isAttributionEnabled = false
-                    map.uiSettings.isLogoEnabled = false
+                if (!didLoadStyle) {
+                    didLoadStyle = true
+                    map.setStyle(Style.Builder().fromJson(styleJson)) {
+                        map.uiSettings.isAttributionEnabled = false
+                        map.uiSettings.isLogoEnabled = false
 
-                    if (!didSetInitialCamera) {
-                        didSetInitialCamera = true
-                        val target = if (location != null)
-                            LatLng(location.latitude, location.longitude)
-                        else
-                            PRAGUE
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(target)
-                            .zoom(DEFAULT_ZOOM)
-                            .build()
+                        if (!didSetInitialCamera) {
+                            didSetInitialCamera = true
+                            val target = if (location != null)
+                                LatLng(location.latitude, location.longitude)
+                            else
+                                PRAGUE
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(PRAGUE)
+                                .zoom(DEFAULT_ZOOM)
+                                .build()
+                        }
                     }
                 }
 
-                if (followUser && location != null) {
+                if (followUser && location != null && map.style != null) {
                     val target = LatLng(location.latitude, location.longitude)
                     val newPosition = CameraPosition.Builder()
                         .target(target)

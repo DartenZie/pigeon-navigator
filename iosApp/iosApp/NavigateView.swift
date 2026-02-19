@@ -8,6 +8,7 @@
 import SwiftUI
 import MapLibre
 import CoreLocation
+import Shared
 
 struct NavigateView: UIViewRepresentable {
     let location: CLLocationCoordinate2D?
@@ -17,8 +18,9 @@ struct NavigateView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
     
     func makeUIView(context: Context) -> MLNMapView {
-        let styleURL = Bundle.main.url(forResource: "style", withExtension: "json", subdirectory: "MapAssets")!
-                
+        let styleURL = resolveStyleURL()
+            ?? Bundle.main.url(forResource: "style", withExtension: "json", subdirectory: "MapAssets")!
+                 
         let mapView = MLNMapView(frame: .zero, styleURL: styleURL)
         mapView.delegate = context.coordinator
         
@@ -26,6 +28,30 @@ struct NavigateView: UIViewRepresentable {
         mapView.allowsTilting = true
         
         return mapView
+    }
+
+    private func resolveStyleURL() -> URL? {
+        let styleProvider = MapStyleProvider(
+            config: MapStyleConfig(
+                baseStyleAssetPath: "style.json",
+                pmtilesSourceId: "pmtiles-source",
+                tileArchiveLocation: TileArchiveLocationAsset(assetPath: "cz.pmtiles")
+            ),
+            assetLoader: PlatformAssetLoader(),
+            urlResolver: PmtilesUrlResolver(tileArchiveFileStore: TileArchiveFileStore())
+        )
+        let styleJson = styleProvider.getStyleJson()
+        let outputDir = FileManager.default.temporaryDirectory.appendingPathComponent("map-style", isDirectory: true)
+        let outputFile = outputDir.appendingPathComponent("style.generated.json")
+
+        do {
+            try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+            try styleJson.write(to: outputFile, atomically: true, encoding: .utf8)
+            return outputFile
+        } catch {
+            print("Failed to write generated map style: \(error)")
+            return nil
+        }
     }
     
     func updateUIView(_ mapView: MLNMapView, context: Context) {
@@ -58,4 +84,3 @@ struct NavigateView: UIViewRepresentable {
         }
     }
 }
-

@@ -1,4 +1,3 @@
-import com.android.build.api.dsl.AaptOptions
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -6,6 +5,13 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+}
+
+val generatedMapAssetsDir = layout.buildDirectory.dir("generated/map-assets/androidMain")
+
+val syncMapAssets by tasks.registering(Sync::class) {
+    from(rootProject.layout.projectDirectory.dir("map-assets"))
+    into(generatedMapAssetsDir)
 }
 
 kotlin {
@@ -48,8 +54,13 @@ android {
     namespace = "cz.miroslavpasek.pigeonnavigator"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
-    aaptOptions {
-        noCompress += listOf("pmtiles")
+    androidResources {
+        noCompress += "pmtiles"
+    }
+    sourceSets {
+        getByName("main") {
+            assets.setSrcDirs(listOf(generatedMapAssetsDir.get().asFile))
+        }
     }
     defaultConfig {
         applicationId = "cz.miroslavpasek.pigeonnavigator"
@@ -74,7 +85,10 @@ android {
     }
 }
 
+tasks.named("preBuild") {
+    dependsOn(syncMapAssets)
+}
+
 dependencies {
     debugImplementation(libs.compose.uiTooling)
 }
-

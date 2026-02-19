@@ -1,7 +1,6 @@
 {
   "version": 8,
   "sources": {
-    "pmtiles-source": { "type": "vector", "url": "pmtiles://asset://cz.pmtiles" },
     "ofmx-data": {
       "type": "geojson",
       "data": {

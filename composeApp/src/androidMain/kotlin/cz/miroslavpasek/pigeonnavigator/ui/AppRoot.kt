@@ -58,7 +58,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
             when (selectedTab) {
                 0 -> NavigateScreen(
                     location = state.location,
-                    followUser = true,
+                    followUser = false,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
