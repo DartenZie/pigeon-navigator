@@ -1,0 +1,576 @@
+{
+  "version": 8,
+  "sources": {
+    "ofmx-data": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": []
+      }
+    }
+  },
+  "glyphs": "asset://fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "hsl(47, 26%, 88%)"
+      }
+    },
+    {
+      "id": "landuse-residential",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "landuse",
+      "filter": [
+        "all",
+        ["==", "$type", "Polygon"],
+        ["in", "class", "residential", "suburb", "neighbourhood"]
+      ],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "fill-color": "hsl(47, 13%, 86%)",
+        "fill-opacity": 0.7
+      }
+    },
+    {
+      "id": "landcover_grass",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "landcover",
+      "filter": ["==", "class", "grass"],
+      "paint": {
+        "fill-color": "hsl(82, 46%, 72%)",
+        "fill-opacity": 0.45
+      }
+    },
+    {
+      "id": "landcover_wood",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "landcover",
+      "filter": ["==", "class", "wood"],
+      "paint": {
+        "fill-color": "hsl(82, 46%, 72%)",
+        "fill-opacity": {
+          "base": 1,
+          "stops": [[8, 0.6], [22, 1]]
+        }
+      }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["==", "$type", "Polygon"],
+        ["!=", "intermittent", 1],
+        ["!=", "brunnel", "tunnel"]
+      ],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "fill-color": "hsl(205, 56%, 73%)"
+      }
+    },
+    {
+      "id": "water_intermittent",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "water",
+      "filter": [
+        "all",
+        ["==", "$type", "Polygon"],
+        ["==", "intermittent", 1]],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "fill-color": "hsl(205, 56%, 73%)",
+        "fill-opacity": 0.7
+      }
+    },
+    {
+      "id": "waterway-tunnel",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "waterway",
+      "filter": [
+        "all",
+        ["==", "$type", "LineString"],
+        ["==", "brunnel", "tunnel"]
+      ],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "hsl(205, 56%, 73%)",
+        "line-dasharray": [3, 3],
+        "line-gap-width": {
+          "stops": [[12, 0], [20, 6]]
+        },
+        "line-opacity": 1,
+        "line-width": {
+          "base": 1.4,
+          "stops": [[8, 1], [20, 2]]
+        }
+      }
+    },
+    {
+      "id": "waterway",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "waterway",
+      "filter": [
+        "all",
+        ["==", "$type", "LineString"],
+        ["!in", "brunnel", "tunnel", "bridge"],
+        ["!=", "intermittent", 1]
+      ],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "hsl(205, 56%, 73%)",
+        "line-opacity": 1,
+        "line-width": {
+          "base": 1.4,
+          "stops": [[8, 1], [20, 8]]
+        }
+      }
+    },
+    {
+      "id": "waterway_intermittent",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "waterway",
+      "filter": [
+        "all",
+        ["==", "$type", "LineString"],
+        ["!in", "brunnel", "tunnel", "bridge"],
+        ["==", "intermittent", 1]
+      ],
+      "layout": {
+        "visibility": "visible"
+      },
+      "paint": {
+        "line-color": "hsl(205, 56%, 73%)",
+        "line-dasharray": [2, 1],
+        "line-opacity": 1,
+        "line-width": {
+          "base": 1.4,
+          "stops": [[8, 1], [20, 8]]
+        }
+      }
+    },
+    {
+      "id": "road_trunk_primary",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        ["==", "$type", "LineString"],
+        ["in", "class", "trunk", "primary"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#fff",
+        "line-width": {
+          "base": 1.4,
+          "stops": [[6, 0.5], [20, 30]]
+        }
+      }
+    },
+    {
+      "id": "road_secondary_tertiary",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        ["==", "$type", "LineString"],
+        ["in", "class", "secondary", "tertiary"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "#fff",
+        "line-width": {
+          "base": 1.4,
+          "stops": [[6, 0.5], [20, 20]]
+        }
+      }
+    },
+    {
+      "id": "road_major_motorway",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "transportation",
+      "filter": [
+        "all",
+        ["==", "$type", "LineString"],
+        ["==", "class", "motorway"]
+      ],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round"
+      },
+      "paint": {
+        "line-color": "hsl(0, 0%, 100%)",
+        "line-offset": 0,
+        "line-width": {
+          "base": 1.4,
+          "stops": [[8, 1], [16, 10]]
+        }
+      }
+    },
+    {
+      "id": "countries-boundary",
+      "type": "line",
+      "source": "ofmx-data",
+      "paint": {
+        "line-color": "#464646",
+        "line-width": {
+          "stops": [
+            [1, 0.5],
+            [6, 1],
+            [14, 3],
+            [22, 6]
+          ]
+        },
+        "line-opacity": {
+          "stops": [
+            [3, 0.5],
+            [6, 1]
+          ]
+        }
+      },
+      "filter": ["all", ["==", ["get", "kind"], "border"]],
+      "layout": {
+        "line-cap": "round",
+        "line-join": "round",
+        "visibility": "visible"
+      },
+      "maxzoom": 24
+    },
+    {
+      "id": "atz-fill-layer",
+      "type": "fill",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "ATZ"]],
+      "paint": {
+        "fill-color": "#464646",
+        "fill-opacity": 0.2
+      }
+    },
+    {
+      "id": "atz-stroke-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "ATZ"]],
+      "paint": {
+        "line-color": "#000000",
+        "line-opacity": 0.2,
+        "line-width": ["interpolate", ["exponential", 1], ["zoom"], 7, 0, 9, 1, 12, 1.5]
+      }
+    },
+    {
+      "id": "ctr-fill-layer",
+      "type": "fill",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "CTR"]],
+      "paint": {
+        "fill-color": "#FF0000",
+        "fill-opacity": 0.1
+      }
+    },
+    {
+      "id": "ctr-stroke-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "CTR"]],
+      "paint": {
+        "line-color": "#FF0000",
+        "line-width": ["interpolate", ["exponential", 1], ["zoom"], 7, 0, 9, 4, 12, 6],
+        "line-opacity": 0.2,
+        "line-offset": ["interpolate", ["exponential", 1], ["zoom"], 7, 0, 9, 2, 12, 3]
+      }
+    },
+    {
+      "id": "tma-fill-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "TMA"]],
+      "paint": {
+        "line-color": "#147DF5",
+        "line-width": ["interpolate", ["exponential", 1], ["zoom"], 7, 1, 9, 2, 12, 3]
+      }
+    },
+    {
+      "id": "tma-stroke-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "TMA"]],
+      "paint": {
+        "line-color": "#147DF5",
+        "line-width": ["interpolate", ["exponential", 1], ["zoom"], 7, 0, 9, 24, 12, 32],
+        "line-opacity": 0.2
+      }
+    },
+    {
+      "id": "d-fill-layer",
+      "type": "fill",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "D"]],
+      "paint": {
+        "fill-color": "#FF8700",
+        "fill-opacity": 0.4
+      }
+    },
+    {
+      "id": "d-stroke-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["==", ["get", "type"], "D"]],
+      "paint": {
+        "line-color": "#FF8700",
+        "line-width": 2,
+        "line-opacity": 1
+      }
+    },
+    {
+      "id": "pr-fill-layer",
+      "type": "fill",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["any", ["==", ["get", "type"], "P"], ["==", ["get", "type"], "R"]]],
+      "paint": {
+        "fill-color": "#FF0000",
+        "fill-opacity": 0.4
+      }
+    },
+    {
+      "id": "pr-stroke-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airspace"], ["any", ["==", ["get", "type"], "P"], ["==", ["get", "type"], "R"]]],
+      "paint": {
+        "line-color": "#FF0000",
+        "line-width": 2,
+        "line-opacity": 1
+      }
+    },
+    {
+      "id": "other-stroke-layer",
+      "type": "line",
+      "source": "ofmx-data",
+      "filter": [
+        "all",
+        ["==", ["get", "kind"], "airspace"],
+        ["!in", ["get", "type"], ["literal", ["ATZ", "CTR", "TMA", "R", "D", "P"]]]
+      ],
+      "paint": {
+        "line-color": "#00FF00",
+        "line-width": ["interpolate", ["exponential", 1], ["zoom"], 7, 1, 9, 3, 12, 4],
+        "line-opacity": 0.7
+      }
+    },
+    {
+      "id": "place_label_other",
+      "type": "symbol",
+      "source": "pmtiles-source",
+      "source-layer": "place",
+      "minzoom": 8,
+      "filter": [
+        "all",
+        ["==", "$type", "Point"],
+        ["!in", "class", "city", "state", "country", "continent"]
+      ],
+      "layout": {
+        "text-anchor": "center",
+        "text-field": "{name:latin}",
+        "text-font": ["Poppins-Regular"],
+        "text-max-width": 6,
+        "text-size": {
+          "stops": [[6, 8], [12, 12]]
+        },
+        "visibility": "visible"
+      },
+      "paint": {
+        "text-color": "hsl(0, 0%, 25%)",
+        "text-halo-blur": 0,
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 1
+      }
+    },
+    {
+      "id": "place_label_city",
+      "type": "symbol",
+      "source": "pmtiles-source",
+      "source-layer": "place",
+      "maxzoom": 16,
+      "filter": [
+        "all",
+        ["==", "$type", "Point"],
+        ["==", "class", "city"]
+      ],
+      "layout": {
+        "text-field": "{name:latin}",
+        "text-font": ["Poppins-Medium"],
+        "text-max-width": 10,
+        "text-size": {
+          "stops": [[3, 10], [8, 14]]
+        }
+      },
+      "paint": {
+        "text-color": "hsl(0, 0%, 0%)",
+        "text-halo-blur": 0,
+        "text-halo-color": "hsla(0, 0%, 100%, 0.75)",
+        "text-halo-width": 1
+      }
+    },
+    {
+      "id": "airport-point-layer",
+      "type": "circle",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airport"], ["!=", ["get", "designator"], ""]],
+      "paint": {
+        "circle-color": "#000000",
+        "circle-radius": ["interpolate", ["exponential", 1], ["zoom"], 5, 3, 10, 6],
+        "circle-opacity": 0.9
+      }
+    },
+    {
+      "id": "airport-label-layer",
+      "type": "symbol",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airport"], ["!=", ["get", "designator"], ""]],
+      "layout": {
+        "text-field": "{designator}",
+        "text-font": ["Poppins-SemiBold"],
+        "text-allow-overlap": false,
+        "text-offset": [0, 1]
+      },
+      "paint": {
+        "text-color": "#000000",
+        "text-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 6, 10, 12],
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 0.5
+      }
+    },
+    {
+      "id": "airport-point-2-layer",
+      "type": "circle",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airport"], ["==", ["get", "designator"], ""]],
+      "minzoom": 8,
+      "paint": {
+        "circle-color": "#464646",
+        "circle-radius": ["interpolate", ["exponential", 1], ["zoom"], 3, 1, 8, 4],
+        "circle-opacity": 0.9
+      }
+    },
+    {
+      "id": "airport-label-2-layer",
+      "type": "symbol",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "airport"], ["==", ["get", "designator"], ""]],
+      "minzoom": 8,
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["Poppins-SemiBold"],
+        "text-allow-overlap": false,
+        "text-offset": [0, 1]
+      },
+      "paint": {
+        "text-color": "#464646",
+        "text-size": ["interpolate", ["exponential", 1], ["zoom"], 3, 4, 8, 10],
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 0.5
+      }
+    },
+    {
+      "id": "navaid-point-layer",
+      "type": "symbol",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "navaid"], ["!=", ["get", "type"], "vocalic"]],
+      "minzoom": 7,
+      "layout": {
+        "icon-image": "triangle",
+        "icon-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 0.8, 10, 1.5],
+        "icon-allow-overlap": true
+      },
+      "paint": {
+        "icon-color": "#0066FF",
+        "icon-opacity": 0.9
+      }
+    },
+    {
+      "id": "navaid-label-layer",
+      "type": "symbol",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "navaid"], ["!=", ["get", "type"], "vocalic"]],
+      "minzoom": 7,
+      "layout": {
+        "text-field": "{designator}",
+        "text-font": ["Poppins-SemiBold"],
+        "text-allow-overlap": false,
+        "text-offset": [0, 1],
+        "text-anchor": "top"
+      },
+      "paint": {
+        "text-color": "#0066FF",
+        "text-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 6, 10, 12],
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 0.5
+      }
+    },
+    {
+      "id": "navaid-vocalic-point-layer",
+      "type": "symbol",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "navaid"], ["==", ["get", "type"], "vocalic"]],
+      "minzoom": 7,
+      "layout": {
+        "icon-image": "triangle-vocalic",
+        "icon-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 0.8, 10, 1.5],
+        "icon-allow-overlap": true
+      },
+      "paint": {
+        "icon-color": "#0066FF",
+        "icon-opacity": 0.9
+      }
+    },
+    {
+      "id": "navaid-vocalic-label-layer",
+      "type": "symbol",
+      "source": "ofmx-data",
+      "filter": ["all", ["==", ["get", "kind"], "navaid"], ["==", ["get", "type"], "vocalic"]],
+      "minzoom": 7,
+      "layout": {
+        "text-field": "{phonetic}",
+        "text-font": ["Poppins-SemiBold"],
+        "text-allow-overlap": false,
+        "text-offset": [0, 1],
+        "text-anchor": "top"
+      },
+      "paint": {
+        "text-color": "#0066FF",
+        "text-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 6, 10, 12],
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 0.5
+      }
+    }
+  ]
+}

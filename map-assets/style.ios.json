@@ -1,0 +1,26 @@
+{
+  "version": 8,
+  "sources": {
+    "cz": {
+      "type": "vector",
+      "url": "pmtiles://asset://cz.pmtiles"
+    }
+  },
+  "glyphs": "asset://fonts/{fontstack}/{range}.pbf",
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "hsl(47, 26%, 88%)"
+      }
+    },
+    {
+      "id": "debug-cz",
+      "type": "line",
+      "source": "cz",
+      "source-layer": "YOUR_REAL_SOURCE_LAYER",
+      "paint": { "line-width": 6 }
+    }
+  ]
+}
