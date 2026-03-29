@@ -314,7 +314,7 @@
       "type": "fill",
       "source": "pmtiles-source",
       "source-layer": "aviation_zones",
-      "filter": ["all", ["==", ["has", "zone_type"], "ATZ"]],
+      "filter": ["all", ["==", ["get", "zone_type"], "ATZ"]],
       "paint": {
         "fill-color": "#464646",
         "fill-opacity": 0.2
