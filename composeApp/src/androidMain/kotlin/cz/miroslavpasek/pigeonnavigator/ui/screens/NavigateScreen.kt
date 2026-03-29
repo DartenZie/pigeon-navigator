@@ -1,5 +1,6 @@
 package cz.miroslavpasek.pigeonnavigator.ui.screens
 
+import android.location.Location
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -21,6 +22,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 
 private const val DEFAULT_ZOOM = 10.5
+private const val RECENTER_DISTANCE_METERS = 12f
 private val PRAGUE = LatLng(50.0755, 14.4378)
 
 @Composable
@@ -85,13 +87,25 @@ fun NavigateScreen(
 
                 if (followUser && location != null && map.style != null) {
                     val target = LatLng(location.latitude, location.longitude)
-                    val newPosition = CameraPosition.Builder()
-                        .target(target)
-                        .zoom(map.cameraPosition.zoom)
-                        .build()
-                    map.animateCamera(
-                        org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(newPosition)
+                    val currentTarget = map.cameraPosition.target ?: return@getMapAsync
+                    val distanceBuffer = FloatArray(1)
+                    Location.distanceBetween(
+                        currentTarget.latitude,
+                        currentTarget.longitude,
+                        target.latitude,
+                        target.longitude,
+                        distanceBuffer
                     )
+
+                    if (distanceBuffer[0] >= RECENTER_DISTANCE_METERS) {
+                        val newPosition = CameraPosition.Builder()
+                            .target(target)
+                            .zoom(map.cameraPosition.zoom)
+                            .build()
+                        map.animateCamera(
+                            org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(newPosition)
+                        )
+                    }
                 }
             }
         }

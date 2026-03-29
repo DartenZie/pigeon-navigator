@@ -31,6 +31,9 @@ struct ContentView: View {
                         .padding(.bottom, 18)
                 }
             }
+            Tab("Search", systemImage: "magnifyingglass") {
+                SearchView()
+            }
             Tab("Nearby", systemImage: "mappin.and.ellipse") {
                 
             }

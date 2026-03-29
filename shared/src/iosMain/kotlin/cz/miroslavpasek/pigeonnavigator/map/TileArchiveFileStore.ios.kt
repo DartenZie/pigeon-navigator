@@ -29,9 +29,10 @@ actual class TileArchiveFileStore {
         )
 
         val destinationPath = "$archivesDir/${assetPath.substringAfterLast('/')}"
-        if (!fileManager.fileExistsAtPath(destinationPath)) {
-            fileManager.copyItemAtPath(sourcePath, destinationPath, null)
+        if (fileManager.fileExistsAtPath(destinationPath)) {
+            fileManager.removeItemAtPath(destinationPath, null)
         }
+        fileManager.copyItemAtPath(sourcePath, destinationPath, null)
 
         return "file://$destinationPath"
     }

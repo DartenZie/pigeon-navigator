@@ -1,19 +1,22 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
-    alias(libs.plugins.androidLibrary)
+    id("com.android.kotlin.multiplatform.library")
 }
 
 kotlin {
-    androidTarget {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
-        }
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
+    androidLibrary {
+        namespace = "cz.miroslavpasek.pigeonnavigator.shared"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
     
     listOf(
         iosArm64(),
+        iosX64(),
         iosSimulatorArm64()
     ).forEach { iosTarget ->
         iosTarget.binaries.framework {
@@ -27,6 +30,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.koin.core)
+            implementation(projects.core.platform)
+            implementation(projects.data.searchData)
+            implementation(projects.feature.searchFeature)
         }
         androidMain.dependencies {
             implementation(libs.play.services.location)
@@ -35,17 +41,5 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.koin.test)
         }
-    }
-}
-
-android {
-    namespace = "cz.miroslavpasek.pigeonnavigator.shared"
-    compileSdk = libs.versions.android.compileSdk.get().toInt()
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    defaultConfig {
-        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 }

@@ -33,3 +33,10 @@ dependencyResolutionManagement {
 
 include(":composeApp")
 include(":shared")
+include(":core:util")
+include(":core:platform")
+include(":domain")
+include(":data:searchData")
+project(":data:searchData").projectDir = file("data/search")
+include(":feature:searchFeature")
+project(":feature:searchFeature").projectDir = file("feature/search")
