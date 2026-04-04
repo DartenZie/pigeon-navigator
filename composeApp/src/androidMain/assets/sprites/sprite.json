@@ -1,0 +1,16 @@
+{
+  "triangle": {
+    "width": 42,
+    "height": 42,
+    "x": 0,
+    "y": 0,
+    "pixelRatio": 2
+  },
+  "triangle-vocalic": {
+    "width": 42,
+    "height": 42,
+    "x": 42,
+    "y": 0,
+    "pixelRatio": 2
+  }
+}

@@ -7,39 +7,40 @@ struct ContentView: View {
     private let observer = LocationObserver()
     
     var body: some View {
-        TabView {
-            Tab("Navigate", systemImage: "location.fill") {
-                ZStack (alignment: .bottomLeading){
-                    NavigateView(location: coordinate, followUser: true)
-                        .ignoresSafeArea()
-                        .onAppear {
-                            observer.start { loc in
-                                guard !loc.requiresPermission else {
-                                    print("Location permission required")
-                                    return
-                                }
-                                
-                                coordinate = CLLocationCoordinate2D(
-                                    latitude: loc.latitude,
-                                    longitude: loc.longitude
-                                )
-                            }
-                        }
+        NavigateView(location: coordinate, followUser: true)
+            .ignoresSafeArea()
+            .onAppear {
+                observer.start { loc in
+                    guard !loc.requiresPermission else {
+                        print("Location permission required")
+                        return
+                    }
                     
-                    HUDCluster(speed: 0, altitude: 0)
-                        .padding(.leading)
-                        .padding(.bottom, 18)
+                    coordinate = CLLocationCoordinate2D(
+                        latitude: loc.latitude,
+                        longitude: loc.longitude
+                    )
                 }
             }
-            Tab("Search", systemImage: "magnifyingglass") {
-                SearchView()
-            }
-            Tab("Nearby", systemImage: "mappin.and.ellipse") {
-                
-            }
-            Tab("Settings", systemImage: "gear") {
-                
-            }
-        }
+//        TabView {
+//            Tab("Navigate", systemImage: "location.fill") {
+//                ZStack (alignment: .bottomLeading){
+//                    
+//                    
+//                    HUDCluster(speed: 0, altitude: 0)
+//                        .padding(.leading)
+//                        .padding(.bottom, 18)
+//                }
+//            }
+//            Tab("Search", systemImage: "magnifyingglass") {
+//                SearchView()
+//            }
+//            Tab("Nearby", systemImage: "mappin.and.ellipse") {
+//                
+//            }
+//            Tab("Settings", systemImage: "gear") {
+//                
+//            }
+//        }
     }
 }

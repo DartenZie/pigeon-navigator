@@ -70,6 +70,8 @@ struct NavigateView: UIViewRepresentable {
             if let resourcePath = Bundle.main.resourcePath {
                 let glyphPath = "\(resourcePath)/MapAssets/fonts/{fontstack}/{range}.pbf"
                 root["glyphs"] = "file://\(glyphPath)"
+                let spritePath = "\(resourcePath)/MapAssets/sprites/sprite"
+                root["sprite"] = "file://\(spritePath)"
             }
 
             var normalizedLayers = [[String: Any]]()
@@ -87,13 +89,8 @@ struct NavigateView: UIViewRepresentable {
                 }
 
                 var layout = (layer["layout"] as? [String: Any]) ?? [:]
-                layout.removeValue(forKey: "icon-image")
                 if layout["text-font"] == nil {
                     layout["text-font"] = ["Poppins-Regular"]
-                }
-                if let textField = layout["text-field"] as? String,
-                   textField == "{name}" {
-                    layout["text-field"] = "{name:latin}"
                 }
                 layer["layout"] = layout
 

@@ -1,6 +1,7 @@
 {
   "version": 8,
   "glyphs": "asset://fonts/{fontstack}/{range}.pbf",
+  "sprite": "asset://sprites/sprite",
   "layers": [
     {
       "id": "background",
@@ -407,7 +408,7 @@
       "type": "fill",
       "source": "pmtiles-source",
       "source-layer": "aviation_zones",
-      "filter": ["all", ["any", ["==", ["get", "zone_type"], "P"], ["==", ["get", "zone_type"], "R"]]],
+      "filter": ["all", ["any", ["==", ["get", "zone_type"], "P"], ["==", ["get", "zone_type"], "R"], ["==", ["get", "zone_type"], "PR"]]],
       "paint": {
         "fill-color": "#FF0000",
         "fill-opacity": 0.4
@@ -418,7 +419,7 @@
       "type": "line",
       "source": "pmtiles-source",
       "source-layer": "aviation_airspace_borders",
-      "filter": ["all", ["any", ["==", ["get", "zone_type"], "P"], ["==", ["get", "zone_type"], "R"]]],
+      "filter": ["all", ["any", ["==", ["get", "zone_type"], "P"], ["==", ["get", "zone_type"], "R"], ["==", ["get", "zone_type"], "PR"]]],
       "paint": {
         "line-color": "#FF0000",
         "line-width": 2,
@@ -426,18 +427,131 @@
       }
     },
     {
-      "id": "other-stroke-layer",
+      "id": "tra-fill-layer",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_zones",
+      "filter": ["all", ["==", ["get", "zone_type"], "TRA"]],
+      "paint": {
+        "fill-color": "#FF0000",
+        "fill-opacity": 0.1
+      }
+    },
+    {
+      "id": "tra-stroke-layer",
       "type": "line",
       "source": "pmtiles-source",
       "source-layer": "aviation_airspace_borders",
-      "filter": [
-        "all",
-        ["!in", ["get", "zone_type"], ["literal", ["ATZ", "CTR", "TMA", "R", "D", "P"]]]
-      ],
+      "filter": ["all", ["==", ["get", "zone_type"], "TRA"]],
       "paint": {
-        "line-color": "#00FF00",
-        "line-width": ["interpolate", ["exponential", 1], ["zoom"], 7, 1, 9, 3, 12, 4],
-        "line-opacity": 0.7
+        "line-color": "#0AFF99",
+        "line-width": 2,
+        "line-opacity": 1,
+        "line-dasharray": [2, 2]
+      }
+    },
+    {
+      "id": "tsa-fill-layer",
+      "type": "fill",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_zones",
+      "filter": ["all", ["==", ["get", "zone_type"], "TSA"]],
+      "paint": {
+        "fill-color": "#FFD300",
+        "fill-opacity": 0.1
+      }
+    },
+    {
+      "id": "tsa-stroke-layer",
+      "type": "line",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_airspace_borders",
+      "filter": ["all", ["==", ["get", "zone_type"], "TSA"]],
+      "paint": {
+        "line-color": "#0AFF99",
+        "line-width": 2,
+        "line-opacity": 1,
+        "line-dasharray": [1, 1]
+      }
+    },
+    {
+      "id": "airport-point-layer",
+      "type": "circle",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_airports",
+      "paint": {
+        "circle-color": "#000000",
+        "circle-radius": ["interpolate", ["exponential", 1], ["zoom"], 5, 3, 10, 6],
+        "circle-opacity": 0.9
+      }
+    },
+    {
+      "id": "airport-label-layer",
+      "type": "symbol",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_airports",
+      "layout": {
+        "text-field": "{id}",
+        "text-font": ["Poppins-SemiBold"],
+        "text-allow-overlap": false,
+        "text-offset": [0, 1]
+      },
+      "paint": {
+        "text-color": "#000000",
+        "text-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 6, 10, 12],
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 0.5
+      }
+    },
+    {
+      "id": "navaid-point-layer",
+      "type": "symbol",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_poi",
+      "filter": ["all", ["!=", ["get", "type"], "vocalic"]],
+      "layout": {
+        "icon-image": "triangle",
+        "icon-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 0.4, 10, 0.8],
+        "icon-allow-overlap": true
+      },
+      "paint": {
+        "icon-color": "#0066FF",
+        "icon-opacity": 0.9
+      }
+    },
+    {
+      "id": "navaid-vocalic-point-layer",
+      "type": "symbol",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_poi",
+      "filter": ["all", ["==", ["get", "type"], "vocalic"]],
+      "layout": {
+        "icon-image": "triangle-vocalic",
+        "icon-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 0.4, 10, 0.8],
+        "icon-allow-overlap": true
+      },
+      "paint": {
+        "icon-color": "#0066FF",
+        "icon-opacity": 0.9
+      }
+    },
+    {
+      "id": "navaid-label-layer",
+      "type": "symbol",
+      "source": "pmtiles-source",
+      "source-layer": "aviation_poi",
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["Poppins-SemiBold"],
+        "text-allow-overlap": false,
+        "text-offset": [0, 1],
+        "text-anchor": "top"
+      },
+      "paint": {
+        "text-color": "#0066FF",
+        "text-size": ["interpolate", ["exponential", 1], ["zoom"], 5, 6, 10, 12],
+        "text-halo-color": "hsl(0, 0%, 100%)",
+        "text-halo-width": 0.5
       }
     }
   ]
