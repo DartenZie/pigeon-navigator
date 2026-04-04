@@ -14,9 +14,20 @@ struct NavigateView: UIViewRepresentable {
     let location: CLLocationCoordinate2D?
     var followUser: Bool = true
     var zoomLevel = 10.5
+    var onDirectionChange: (CLLocationDirection) -> Void = { _ in }
+    var onAwayFromUserLocationChange: (Bool) -> Void = { _ in }
+    var resetNorthToken: Int = 0
+    var recenterOnUserToken: Int = 0
     private let recenterDistanceMeters: CLLocationDistance = 12
+    private let awayFromUserDistanceMeters: CLLocationDistance = 24
     
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onDirectionChange: onDirectionChange,
+            onAwayFromUserLocationChange: onAwayFromUserLocationChange,
+            awayFromUserDistanceMeters: awayFromUserDistanceMeters
+        )
+    }
     
     func makeUIView(context: Context) -> MLNMapView {
         let styleURL = resolveStyleURL()
@@ -27,6 +38,7 @@ struct NavigateView: UIViewRepresentable {
         
         mapView.allowsRotating = true
         mapView.allowsTilting = true
+        mapView.compassView.isHidden = true
         
         return mapView
     }
@@ -110,31 +122,100 @@ struct NavigateView: UIViewRepresentable {
     func updateUIView(_ mapView: MLNMapView, context: Context) {
         mapView.attributionButton.isHidden = true
         mapView.logoView.isHidden = true
+        mapView.compassView.isHidden = true
+
+        context.coordinator.onDirectionChange = onDirectionChange
+        context.coordinator.onAwayFromUserLocationChange = onAwayFromUserLocationChange
+
+        if context.coordinator.lastResetNorthToken != resetNorthToken {
+            context.coordinator.lastResetNorthToken = resetNorthToken
+            mapView.setDirection(0, animated: true)
+        }
+
+        if context.coordinator.lastRecenterOnUserToken != recenterOnUserToken,
+           let userLocation = context.coordinator.lastKnownUserLocation {
+            context.coordinator.lastRecenterOnUserToken = recenterOnUserToken
+            mapView.setCenter(userLocation, zoomLevel: mapView.zoomLevel, animated: true)
+            context.coordinator.setAwayFromUserLocation(false)
+        }
         
         guard followUser, let loc = location else { return }
         
         guard mapView.style != nil else { return }
+
+        context.coordinator.lastKnownUserLocation = loc
+
+        let newLocation = CLLocation(latitude: loc.latitude, longitude: loc.longitude)
         
         if !context.coordinator.didSetInitialCamera {
             context.coordinator.didSetInitialCamera = true
             mapView.setCenter(loc, zoomLevel: zoomLevel, animated: false)
             context.coordinator.lastCenter = loc
+            context.coordinator.lastFollowLocation = newLocation
+            context.coordinator.evaluateAwayFromUserLocation(mapView)
         } else {
+            guard context.coordinator.shouldFollowForLocation(newLocation) else { return }
+            guard !context.coordinator.isAwayFromUserLocation else { return }
+
             let currentCenter = mapView.centerCoordinate
             let current = CLLocation(latitude: currentCenter.latitude, longitude: currentCenter.longitude)
-            let target = CLLocation(latitude: loc.latitude, longitude: loc.longitude)
-            let shouldRecenter = current.distance(from: target) >= recenterDistanceMeters
+            let shouldRecenter = current.distance(from: newLocation) >= recenterDistanceMeters
 
             if shouldRecenter {
                 mapView.setCenter(loc, zoomLevel: mapView.zoomLevel, animated: true)
                 context.coordinator.lastCenter = loc
             }
+
+            context.coordinator.lastFollowLocation = newLocation
+            context.coordinator.evaluateAwayFromUserLocation(mapView)
         }
     }
     
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var didSetInitialCamera = false
         var lastCenter: CLLocationCoordinate2D?
+        var lastFollowLocation: CLLocation?
+        var lastKnownUserLocation: CLLocationCoordinate2D?
+        var isAwayFromUserLocation = false
+        var onDirectionChange: (CLLocationDirection) -> Void
+        var onAwayFromUserLocationChange: (Bool) -> Void
+        let awayFromUserDistanceMeters: CLLocationDistance
+        var lastResetNorthToken: Int = 0
+        var lastRecenterOnUserToken: Int = 0
+
+        init(
+            onDirectionChange: @escaping (CLLocationDirection) -> Void,
+            onAwayFromUserLocationChange: @escaping (Bool) -> Void,
+            awayFromUserDistanceMeters: CLLocationDistance
+        ) {
+            self.onDirectionChange = onDirectionChange
+            self.onAwayFromUserLocationChange = onAwayFromUserLocationChange
+            self.awayFromUserDistanceMeters = awayFromUserDistanceMeters
+        }
+
+        func shouldFollowForLocation(_ location: CLLocation) -> Bool {
+            guard let previous = lastFollowLocation else { return true }
+            return previous.distance(from: location) >= 0.5
+        }
+
+        func setAwayFromUserLocation(_ isAway: Bool) {
+            guard isAwayFromUserLocation != isAway else { return }
+            isAwayFromUserLocation = isAway
+            onAwayFromUserLocationChange(isAway)
+        }
+
+        func evaluateAwayFromUserLocation(_ mapView: MLNMapView) {
+            guard let userLocation = lastKnownUserLocation else {
+                setAwayFromUserLocation(false)
+                return
+            }
+
+            let center = mapView.centerCoordinate
+            let centerLocation = CLLocation(latitude: center.latitude, longitude: center.longitude)
+            let gpsLocation = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
+            let isAway = centerLocation.distance(from: gpsLocation) >= awayFromUserDistanceMeters
+            setAwayFromUserLocation(isAway)
+        }
         
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
             if !didSetInitialCamera {
@@ -144,6 +225,19 @@ struct NavigateView: UIViewRepresentable {
             
             mapView.attributionButton.isHidden = true
             mapView.logoView.isHidden = true
+            mapView.compassView.isHidden = true
+            onDirectionChange(mapView.direction)
+            evaluateAwayFromUserLocation(mapView)
+        }
+
+        func mapViewRegionIsChanging(_ mapView: MLNMapView) {
+            onDirectionChange(mapView.direction)
+            evaluateAwayFromUserLocation(mapView)
+        }
+
+        func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
+            onDirectionChange(mapView.direction)
+            evaluateAwayFromUserLocation(mapView)
         }
     }
 }

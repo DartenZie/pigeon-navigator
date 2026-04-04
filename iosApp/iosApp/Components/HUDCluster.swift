@@ -6,23 +6,57 @@
 //
 
 import SwiftUI
+import CoreLocation
 
 struct HUDCluster: View {
     let speed: Int
     let altitude: Int
+    let mapDirection: CLLocationDirection
+    let isRecenterVisible: Bool
+    let onCompassTap: () -> Void
+    let onRecenterTap: () -> Void
     
     private let bubbleSize: CGFloat = 64
-    private let gap: Int = 8
+    private let gap: CGFloat = 8
+
+    private var normalizedDirection: CLLocationDirection {
+        let value = mapDirection.truncatingRemainder(dividingBy: 360)
+        return value >= 0 ? value : value + 360
+    }
+
+    private var isCompassVisible: Bool {
+        let distanceToNorth = min(normalizedDirection, 360 - normalizedDirection)
+        return distanceToNorth > 0.05
+    }
     
     var body: some View {
-        let gapCGFloat = CGFloat(gap)
-        let yOffset = -(bubbleSize / 2 + bubbleSize / 2 + gapCGFloat)
-        
-        ZStack(alignment: .bottomLeading) {
-            IndicatorBubble(value: 0, unit: "km/h", size: bubbleSize)
-            IndicatorBubble(value: 0, unit: "m", size: bubbleSize)
-                .offset(x: 0, y: yOffset)
+        VStack(spacing: 14) {
+            HStack(alignment: .bottom) {
+                VStack(spacing: gap) {
+                    IndicatorBubble(value: altitude, unit: "m", size: bubbleSize)
+                    IndicatorBubble(value: speed, unit: "km/h", size: bubbleSize)
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: gap) {
+                    if isRecenterVisible {
+                        RecenterBubble(size: bubbleSize, action: onRecenterTap)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+
+                    if isCompassVisible {
+                        CompassBubble(direction: normalizedDirection, size: bubbleSize, action: onCompassTap)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                }
+            }
+
+            HUDSearchBar()
+                .frame(maxWidth: .infinity, alignment: .center)
         }
+        .animation(.spring(response: 0.28, dampingFraction: 0.9), value: isCompassVisible)
+        .animation(.spring(response: 0.28, dampingFraction: 0.9), value: isRecenterVisible)
+        .offset(y: 24)
     }
 }
-
