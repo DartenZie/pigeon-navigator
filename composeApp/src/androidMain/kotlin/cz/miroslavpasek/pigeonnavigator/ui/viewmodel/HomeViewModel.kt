@@ -1,5 +1,6 @@
 package cz.miroslavpasek.pigeonnavigator.ui.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
