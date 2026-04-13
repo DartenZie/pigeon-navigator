@@ -22,7 +22,10 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 /**
- * Search feature store implementation orchestrating side effects and state updates.
+ * Coordinates search side effects and state updates for [SearchStore].
+ *
+ * The store runs search work on the injected IO dispatcher and emits state updates on the
+ * store scope dispatcher.
  */
 internal class RealSearchStore(
     private val searchUseCase: SearchUseCase,
@@ -37,6 +40,9 @@ internal class RealSearchStore(
     override val state: StateFlow<SearchState> = mutableState.asStateFlow()
     override val effects: Flow<SearchEffect> = effectChannel.receiveAsFlow()
 
+    /**
+     * Processes incoming intents, delegating search execution for submit events.
+     */
     override fun send(intent: SearchIntent) {
         when (intent) {
             SearchIntent.SubmitSearch -> submitCurrentQuery()
@@ -44,6 +50,7 @@ internal class RealSearchStore(
         }
     }
 
+    /** Cancels active coroutines and closes the effect channel. */
     override fun close() {
         scope.cancel()
         effectChannel.close()
@@ -74,6 +81,13 @@ internal class RealSearchStore(
 
             Failure.Unexpected -> {
                 val message = "Unexpected error"
+                reduce(SearchIntent.SearchFailed(message))
+                effectChannel.trySend(SearchEffect.ShowUnexpectedError(message))
+            }
+
+            Failure.OutOfCoverage,
+            Failure.DataUnavailable -> {
+                val message = "Data unavailable"
                 reduce(SearchIntent.SearchFailed(message))
                 effectChannel.trySend(SearchEffect.ShowUnexpectedError(message))
             }

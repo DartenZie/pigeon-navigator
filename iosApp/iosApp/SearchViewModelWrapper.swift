@@ -9,6 +9,7 @@ import SwiftUI
 import Combine
 import Shared
 
+/// Bridges the shared Kotlin `SearchStoreHandle` into an observable SwiftUI model.
 @MainActor
 class SearchViewModelWrapper: ObservableObject {
     private let helper = KoinHelper()
@@ -19,6 +20,7 @@ class SearchViewModelWrapper: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
 
+    /// Creates the wrapper and starts observing shared store state updates.
     init() {
         self.store = helper.getSearchStoreHandle()
         observeState()
@@ -34,14 +36,17 @@ class SearchViewModelWrapper: ObservableObject {
         }
     }
 
+    /// Sends updated query text to the shared search store.
     func onQueryChange(_ newQuery: String) {
         store.onQueryChanged(query: newQuery)
     }
 
+    /// Requests search execution for the current query.
     func submitSearch() {
         store.submitSearch()
     }
 
+    /// Clears query and results in the shared search store.
     func clearSearch() {
         store.clearSearch()
     }

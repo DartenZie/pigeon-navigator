@@ -4,13 +4,17 @@ import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 
 /**
- * Validates search input and delegates to [SearchRepository].
+ * Validates user search input and delegates matching to the repository.
  */
 class SearchUseCase(
     private val repository: SearchRepository
 ) {
     /**
-     * Executes search for [query].
+     * Executes a search for [query].
+     *
+     * @param query User-provided text to search.
+     * @return [AppResult.Failure] with [Failure.Validation] when [query] is blank.
+     * Otherwise returns repository output unchanged.
      */
     suspend operator fun invoke(query: String): AppResult<List<String>, Failure> {
         if (query.isBlank()) {

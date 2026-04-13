@@ -7,7 +7,13 @@ import platform.Foundation.NSString
 import platform.Foundation.stringWithContentsOfFile
 
 @OptIn(ExperimentalForeignApi::class)
+/**
+ * iOS bundle-backed implementation of [PlatformAssetLoader].
+ */
 actual class PlatformAssetLoader {
+    /**
+     * Reads text content from a bundled resource path.
+     */
     actual fun readText(assetPath: String): String {
         val resourcePath = NSBundle.mainBundle.resourcePath
             ?: error("Unable to resolve app bundle resource path")

@@ -17,6 +17,9 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
+/**
+ * Streams Android fused location updates as [FlightLocation] values.
+ */
 class LocationServiceAndroid(
     private val context: Context,
     private val fusedClient: FusedLocationProviderClient
@@ -30,6 +33,11 @@ class LocationServiceAndroid(
     }
 
     @Suppress("MissingPermission")
+    /**
+     * Returns a callback-backed flow of location updates.
+     *
+     * Emits one permission-required marker update when location permission is missing.
+     */
     override fun observeLocationUpdates(): Flow<FlightLocation> = callbackFlow {
         val locationCallback: LocationCallback? =
             if (!hasLocationPermission()) {

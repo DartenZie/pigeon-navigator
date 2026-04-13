@@ -10,6 +10,11 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 
+/**
+ * Builds map style JSON by injecting PMTiles sources and a hillshade layer into a base style.
+ *
+ * The computed style is cached after first build.
+ */
 class MapStyleProvider(
     private val config: MapStyleConfig = MapStyleConfig(),
     private val assetLoader: PlatformAssetLoader = PlatformAssetLoader(),
@@ -28,6 +33,9 @@ class MapStyleProvider(
 
     private var cachedStyleJson: String? = null
 
+    /**
+     * Returns runtime style JSON with terrain source and hillshade injected.
+     */
     fun getStyleJson(): String {
         cachedStyleJson?.let { return it }
 

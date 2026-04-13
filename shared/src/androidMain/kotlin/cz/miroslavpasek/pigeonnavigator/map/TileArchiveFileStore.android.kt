@@ -4,10 +4,16 @@ import android.content.Context
 import java.io.File
 import org.koin.mp.KoinPlatform
 
+/**
+ * Android implementation that copies PMTiles assets into app files storage.
+ */
 actual class TileArchiveFileStore {
     private val context: Context = KoinPlatform.getKoin().get()
     private val archivesDir = File(context.filesDir, "pmtiles")
 
+    /**
+     * Returns a file URL for [assetPath], copying or refreshing the file when needed.
+     */
     actual fun ensureLocalFileUrl(assetPath: String): String {
         if (!archivesDir.exists()) {
             archivesDir.mkdirs()

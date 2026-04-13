@@ -7,7 +7,7 @@ import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchReduce
 import org.koin.dsl.module
 
 /**
- * DI module factory for search feature bindings.
+ * Creates DI bindings for the search feature store and collaborators.
  */
 fun searchFeatureModule() = module {
     factory { SearchUseCase(repository = get()) }

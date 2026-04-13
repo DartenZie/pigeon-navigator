@@ -28,6 +28,9 @@ private val iosDispatcherModule = module {
     single<DispatcherProvider> { IosDispatcherProvider() }
 }
 
+/**
+ * Starts Koin with shared and search feature modules for iOS.
+ */
 fun initKoin() {
     startKoin {
         modules(
@@ -39,10 +42,19 @@ fun initKoin() {
     }
 }
 
+/**
+ * Resolves iOS-facing helper handles from Koin.
+ */
 class KoinHelper {
+    /**
+     * Returns a lifecycle-managed bridge over [SearchStore] for Swift UI layers.
+     */
     fun getSearchStoreHandle(): SearchStoreHandle = SearchStoreHandle(KoinPlatform.getKoin().get())
 }
 
+/**
+ * Bridges [SearchStore] flows and intents to a Swift-friendly API surface.
+ */
 class SearchStoreHandle(
     private val store: SearchStore
 ) {
@@ -50,6 +62,7 @@ class SearchStoreHandle(
     private var stateJob: Job? = null
     private var effectsJob: Job? = null
 
+    /** Starts collecting state updates until [stopState] or [close] is called. */
     fun startState(onEach: (SearchState) -> Unit) {
         if (stateJob != null) return
         stateJob = scope.launch {
@@ -57,11 +70,13 @@ class SearchStoreHandle(
         }
     }
 
+    /** Stops state collection started by [startState]. */
     fun stopState() {
         stateJob?.cancel()
         stateJob = null
     }
 
+    /** Starts collecting one-shot effects until [stopEffects] or [close] is called. */
     fun startEffects(onEach: (SearchEffect) -> Unit) {
         if (effectsJob != null) return
         effectsJob = scope.launch {
@@ -69,23 +84,28 @@ class SearchStoreHandle(
         }
     }
 
+    /** Stops effect collection started by [startEffects]. */
     fun stopEffects() {
         effectsJob?.cancel()
         effectsJob = null
     }
 
+    /** Forwards query changes to the underlying store. */
     fun onQueryChanged(query: String) {
         store.send(SearchIntent.QueryChanged(query))
     }
 
+    /** Requests search execution for current query state. */
     fun submitSearch() {
         store.send(SearchIntent.SubmitSearch)
     }
 
+    /** Requests clearing current query and results. */
     fun clearSearch() {
         store.send(SearchIntent.ClearSearch)
     }
 
+    /** Stops all collection jobs and closes the underlying store. */
     fun close() {
         stopState()
         stopEffects()

@@ -9,11 +9,16 @@ import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchRepository
 
 /**
- * Local-only search repository implementation.
+ * Implements [SearchRepository] using a local search data source.
  */
 class SearchRepositoryImpl(
     private val localDataSource: LocalSearchDataSource = InMemoryLocalSearchDataSource()
 ) : SearchRepository {
+    /**
+     * Returns labels matching [query] by reading local records and mapping them to domain strings.
+     *
+     * Any thrown exception is mapped to [Failure.Unexpected].
+     */
     override suspend fun search(query: String): AppResult<List<String>, Failure> =
         appResultOf(
             block = {

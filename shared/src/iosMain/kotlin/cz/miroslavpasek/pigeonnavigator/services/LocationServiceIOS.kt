@@ -17,8 +17,16 @@ import platform.Foundation.NSError
 import platform.darwin.NSObject
 
 @OptIn(ExperimentalForeignApi::class)
+/**
+ * Streams iOS CoreLocation updates as [FlightLocation] values.
+ */
 class LocationServiceIOS : LocationService {
 
+    /**
+     * Returns a callback-backed flow of location updates.
+     *
+     * Emits a permission-required marker update until authorization is granted.
+     */
     override fun observeLocationUpdates(): Flow<FlightLocation> = callbackFlow {
         val manager = CLLocationManager()
 
@@ -81,8 +89,7 @@ class LocationServiceIOS : LocationService {
                 manager: CLLocationManager,
                 didFailWithError: NSError
             ) {
-                // Optional: you could send requiresPermission=false + zeros, or close(error)
-                // close(Throwable(didFailWithError.localizedDescription))
+                // Errors are currently ignored to keep the stream active.
             }
         }
 

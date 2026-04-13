@@ -6,11 +6,17 @@ import platform.Foundation.NSFileManager
 import platform.Foundation.NSTemporaryDirectory
 
 @OptIn(ExperimentalForeignApi::class)
+/**
+ * iOS implementation that copies bundled PMTiles assets to a temporary directory.
+ */
 actual class TileArchiveFileStore {
     private val fileManager = NSFileManager.defaultManager
     private val tempDir = NSTemporaryDirectory().trimEnd('/')
     private val archivesDir = "$tempDir/pmtiles"
 
+    /**
+     * Returns a file URL for [assetPath] copied from app bundle resources.
+     */
     actual fun ensureLocalFileUrl(assetPath: String): String {
         val resourcePath = NSBundle.mainBundle.resourcePath
             ?: error("Unable to resolve app bundle resource path")

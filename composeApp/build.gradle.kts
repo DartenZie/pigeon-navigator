@@ -67,8 +67,11 @@ dependencies {
     implementation(libs.compose.material.icons.extended)
     implementation(projects.shared)
     implementation(projects.core.platform)
+    implementation(projects.domain)
     implementation(projects.data.searchData)
+    implementation(projects.data.terrainData)
     implementation(projects.feature.searchFeature)
+    implementation(projects.feature.terrainWarningFeature)
 
     debugImplementation(libs.compose.uiTooling)
 }

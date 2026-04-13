@@ -7,7 +7,9 @@
 
 import Shared
 
+/// Resolves shared search store handles for Swift-side consumers.
 class SearchStoreHelper {
+    /// Creates a new `SearchStoreHandle` from the shared dependency graph.
     static func resolve() -> SearchStoreHandle {
         return KoinHelper().getSearchStoreHandle()
     }

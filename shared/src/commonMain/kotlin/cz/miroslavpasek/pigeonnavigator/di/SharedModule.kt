@@ -7,6 +7,9 @@ import cz.miroslavpasek.pigeonnavigator.search.SearchUseCase
 import cz.miroslavpasek.pigeonnavigator.search.SearchViewModel
 import org.koin.dsl.module
 
+/**
+ * Registers shared-layer dependency bindings used by both mobile platforms.
+ */
 val sharedModule = module {
     single { createLocationService() }
 

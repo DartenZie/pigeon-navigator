@@ -1,7 +1,7 @@
 package cz.miroslavpasek.pigeonnavigator.data.search.local
 
 /**
- * Local in-memory implementation used as the initial search data source.
+ * Stores a fixed in-memory record list for local search.
  */
 class InMemoryLocalSearchDataSource : LocalSearchDataSource {
     private val records = listOf(
@@ -12,6 +12,9 @@ class InMemoryLocalSearchDataSource : LocalSearchDataSource {
         LocalSearchRecord("Elderberry")
     )
 
+    /**
+     * Returns records whose labels contain [query] using case-insensitive matching.
+     */
     override suspend fun search(query: String): List<LocalSearchRecord> =
         records.filter { it.label.contains(query, ignoreCase = true) }
 }

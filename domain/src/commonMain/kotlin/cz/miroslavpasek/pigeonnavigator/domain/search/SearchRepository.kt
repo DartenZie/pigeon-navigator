@@ -4,11 +4,14 @@ import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 
 /**
- * Domain contract for searching queryable items.
+ * Defines search operations exposed to domain use cases.
  */
 interface SearchRepository {
     /**
-     * Searches for items matching [query].
+     * Returns labels that match [query].
+     *
+     * @param query User-provided search text.
+     * @return [AppResult.Success] with matched labels, or [AppResult.Failure] with a domain failure.
      */
     suspend fun search(query: String): AppResult<List<String>, Failure>
 }

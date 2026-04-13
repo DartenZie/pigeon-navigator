@@ -1,9 +1,14 @@
 package cz.miroslavpasek.pigeonnavigator.feature.search.presentation
 
 /**
- * Pure reducer for search state transitions.
+ * Applies pure state transitions for the search feature.
  */
 class SearchReducer {
+    /**
+     * Returns the next [SearchState] for the supplied [intent].
+     *
+     * This function is side-effect free.
+     */
     fun reduce(state: SearchState, intent: SearchIntent): SearchState =
         when (intent) {
             is SearchIntent.QueryChanged -> {

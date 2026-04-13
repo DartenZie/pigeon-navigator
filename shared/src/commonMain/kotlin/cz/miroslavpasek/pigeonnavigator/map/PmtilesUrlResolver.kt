@@ -1,9 +1,15 @@
 package cz.miroslavpasek.pigeonnavigator.map
 
+/**
+ * Resolves [TileArchiveLocation] values into `pmtiles://` URLs consumable by map rendering.
+ */
 class PmtilesUrlResolver(
     private val tileArchiveFileStore: TileArchiveFileStore = TileArchiveFileStore()
 ) {
 
+    /**
+     * Returns a `pmtiles://` URL for [location].
+     */
     fun resolve(location: TileArchiveLocation): String = when (location) {
         is TileArchiveLocation.Asset -> "pmtiles://${tileArchiveFileStore.ensureLocalFileUrl(location.assetPath)}"
         is TileArchiveLocation.Remote -> "pmtiles://${location.url}"

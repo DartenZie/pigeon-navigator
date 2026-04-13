@@ -1,5 +1,15 @@
 package cz.miroslavpasek.pigeonnavigator.map
 
+/**
+ * Defines style asset and source identifiers used to build runtime map style JSON.
+ *
+ * @property baseStyleAssetPath Asset path to the base style JSON template.
+ * @property pmtilesSourceId Source id used for vector PMTiles layers.
+ * @property tileArchiveLocation Location of the vector PMTiles archive.
+ * @property terrainDemSourceId Source id used for terrain DEM tiles.
+ * @property terrainArchiveLocation Location of the terrain PMTiles archive.
+ * @property hillshadeLayerId Layer id used for generated hillshade layer.
+ */
 data class MapStyleConfig(
     val baseStyleAssetPath: String = "style.json",
     val pmtilesSourceId: String = "pmtiles-source",
@@ -8,6 +18,9 @@ data class MapStyleConfig(
     val terrainArchiveLocation: TileArchiveLocation = TileArchiveLocation.Asset("terrain.pmtiles"),
     val hillshadeLayerId: String = "terrain-hillshade"
 ) {
+    /**
+     * Creates config with default terrain settings while overriding base style and vector source.
+     */
     constructor(
         baseStyleAssetPath: String,
         pmtilesSourceId: String,
