@@ -14,6 +14,7 @@ android {
             kotlin.directories.add("src/androidMain/kotlin")
             res.directories.add("src/androidMain/res")
             assets.directories.add("src/androidMain/assets")
+            assets.directories.add("../map-assets")
         }
     }
 

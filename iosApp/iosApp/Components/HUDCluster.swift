@@ -30,33 +30,27 @@ struct HUDCluster: View {
     }
     
     var body: some View {
-        VStack(spacing: 14) {
-            HStack(alignment: .bottom) {
-                VStack(spacing: gap) {
-                    IndicatorBubble(value: altitude, unit: "m", size: bubbleSize)
-                    IndicatorBubble(value: speed, unit: "km/h", size: bubbleSize)
-                }
-
-                Spacer(minLength: 0)
-
-                VStack(spacing: gap) {
-                    if isRecenterVisible {
-                        RecenterBubble(size: bubbleSize, action: onRecenterTap)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
-
-                    if isCompassVisible {
-                        CompassBubble(direction: normalizedDirection, size: bubbleSize, action: onCompassTap)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
-                }
+        HStack(alignment: .bottom) {
+            VStack(spacing: gap) {
+                IndicatorBubble(value: altitude, unit: "m", size: bubbleSize)
+                IndicatorBubble(value: speed, unit: "km/h", size: bubbleSize)
             }
 
-            HUDSearchBar()
-                .frame(maxWidth: .infinity, alignment: .center)
+            Spacer(minLength: 0)
+
+            VStack(spacing: gap) {
+                if isRecenterVisible {
+                    RecenterBubble(size: bubbleSize, action: onRecenterTap)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+
+                if isCompassVisible {
+                    CompassBubble(direction: normalizedDirection, size: bubbleSize, action: onCompassTap)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+            }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: isCompassVisible)
         .animation(.spring(response: 0.28, dampingFraction: 0.9), value: isRecenterVisible)
-        .offset(y: 24)
     }
 }
