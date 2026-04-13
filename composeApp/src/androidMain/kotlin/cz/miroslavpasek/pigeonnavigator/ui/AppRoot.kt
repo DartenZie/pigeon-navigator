@@ -40,6 +40,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         Box(modifier = Modifier.fillMaxSize()) {
             NavigateScreen(
                 location = state.location,
+                terrainHazardSamples = state.terrainHazardSamples,
                 followUser = true,
                 onDirectionChange = { mapDirection = it },
                 onAwayFromUserLocationChange = { isAwayFromUserLocation = it },

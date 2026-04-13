@@ -15,22 +15,45 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
+import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.map.MapStyleProvider
+import org.maplibre.android.style.expressions.Expression.eq
+import org.maplibre.android.style.expressions.Expression.get
+import org.maplibre.android.style.expressions.Expression.literal
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.PropertyFactory.circleColor
+import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
+import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.geojson.Feature
+import org.maplibre.geojson.FeatureCollection
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.geojson.Point
 
 private const val DEFAULT_ZOOM = 10.5
 private const val RECENTER_DISTANCE_METERS = 12f
 private const val AWAY_FROM_USER_DISTANCE_METERS = 24f
+private const val BEARING_UPDATE_THRESHOLD_DEGREES = 4.0
+private const val MIN_MOVEMENT_SPEED_MPS = 0.8f
+private const val TERRAIN_SOURCE_ID = "terrain-hazard-source"
+private const val TERRAIN_YELLOW_LAYER_ID = "terrain-hazard-near-layer"
+private const val TERRAIN_RED_LAYER_ID = "terrain-hazard-conflict-layer"
+private const val TERRAIN_SEVERITY_KEY = "severity"
+private const val TERRAIN_SEVERITY_NEAR = "near"
+private const val TERRAIN_SEVERITY_CONFLICT = "conflict"
 private val PRAGUE = LatLng(50.0755, 14.4378)
 
 @Composable
 fun NavigateScreen(
     modifier: Modifier = Modifier,
     location: FlightLocation?,
+    terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
     followUser: Boolean = true,
     onDirectionChange: (Double) -> Unit = {},
     onAwayFromUserLocationChange: (Boolean) -> Unit = {},
@@ -50,6 +73,8 @@ fun NavigateScreen(
     var lastResetNorthToken by remember { mutableIntStateOf(resetNorthToken) }
     var lastRecenterOnUserToken by remember { mutableIntStateOf(recenterOnUserToken) }
     var latestLocation by remember { mutableStateOf(location) }
+    var isTrackingUserLocation by remember { mutableStateOf(followUser) }
+    var didCenterOnFirstGpsFix by remember { mutableStateOf(false) }
 
     val styleJson = remember(mapStyleProvider) { mapStyleProvider.getStyleJson() }
     latestLocation = location
@@ -80,16 +105,19 @@ fun NavigateScreen(
                 if (!didLoadStyle) {
                     didLoadStyle = true
                     map.setStyle(Style.Builder().fromJson(styleJson)) {
+                        ensureTerrainHazardLayers(it)
                         map.uiSettings.isAttributionEnabled = false
                         map.uiSettings.isLogoEnabled = false
                         map.uiSettings.isCompassEnabled = false
 
                         if (!didSetInitialCamera) {
                             didSetInitialCamera = true
-                            val target = if (location != null)
+                            val target = if (location != null) {
+                                didCenterOnFirstGpsFix = true
                                 LatLng(location.latitude, location.longitude)
-                            else
+                            } else {
                                 PRAGUE
+                            }
                             map.cameraPosition = CameraPosition.Builder()
                                 .target(target)
                                 .zoom(DEFAULT_ZOOM)
@@ -98,22 +126,35 @@ fun NavigateScreen(
 
                         onDirectionChange(normalizeBearing(map.cameraPosition.bearing))
                         onAwayFromUserLocationChange(
-                            isAwayFromUserLocation(
+                            shouldShowRecenter(
                                 mapTarget = map.cameraPosition.target,
-                                userLocation = latestLocation
+                                userLocation = latestLocation,
+                                isTrackingUserLocation = isTrackingUserLocation
                             )
                         )
                     }
                 }
 
+                map.style?.let { style ->
+                    ensureTerrainHazardLayers(style)
+                    style.getSourceAs<GeoJsonSource>(TERRAIN_SOURCE_ID)
+                        ?.setGeoJson(buildTerrainHazardFeatureCollection(terrainHazardSamples))
+                }
+
                 if (!didAttachCameraListener) {
                     didAttachCameraListener = true
+                    map.addOnCameraMoveStartedListener { reason ->
+                        if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                            isTrackingUserLocation = false
+                        }
+                    }
                     map.addOnCameraMoveListener {
                         onDirectionChange(normalizeBearing(map.cameraPosition.bearing))
                         onAwayFromUserLocationChange(
-                            isAwayFromUserLocation(
+                            shouldShowRecenter(
                                 mapTarget = map.cameraPosition.target,
-                                userLocation = latestLocation
+                                userLocation = latestLocation,
+                                isTrackingUserLocation = isTrackingUserLocation
                             )
                         )
                     }
@@ -133,36 +174,58 @@ fun NavigateScreen(
                     )
                 }
 
-                if (lastRecenterOnUserToken != recenterOnUserToken && location != null && map.style != null) {
+                if (lastRecenterOnUserToken != recenterOnUserToken) {
                     lastRecenterOnUserToken = recenterOnUserToken
-                    val camera = map.cameraPosition
-                    val target = LatLng(location.latitude, location.longitude)
-                    val newPosition = CameraPosition.Builder()
-                        .target(target)
-                        .zoom(camera.zoom)
-                        .tilt(camera.tilt)
-                        .bearing(camera.bearing)
-                        .build()
-                    map.animateCamera(
-                        org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(newPosition)
-                    )
-                    onAwayFromUserLocationChange(false)
+                    isTrackingUserLocation = true
+                    if (location != null && map.style != null) {
+                        val camera = map.cameraPosition
+                        val target = LatLng(location.latitude, location.longitude)
+                        val trackingBearing = resolveTrackingBearing(camera.bearing, location)
+                        val newPosition = CameraPosition.Builder()
+                            .target(target)
+                            .zoom(camera.zoom)
+                            .tilt(camera.tilt)
+                            .bearing(trackingBearing)
+                            .build()
+                        map.animateCamera(
+                            org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(newPosition)
+                        )
+                        onAwayFromUserLocationChange(false)
+                    }
                 }
 
                 onAwayFromUserLocationChange(
-                    isAwayFromUserLocation(
+                    shouldShowRecenter(
                         mapTarget = map.cameraPosition.target,
-                        userLocation = location
+                        userLocation = location,
+                        isTrackingUserLocation = isTrackingUserLocation
                     )
                 )
 
                 if (followUser && location != null && map.style != null) {
-                    if (isAwayFromUserLocation(map.cameraPosition.target, location)) {
+                    if (!didCenterOnFirstGpsFix) {
+                        didCenterOnFirstGpsFix = true
+                        val newPosition = CameraPosition.Builder()
+                            .target(LatLng(location.latitude, location.longitude))
+                            .zoom(map.cameraPosition.zoom)
+                            .bearing(map.cameraPosition.bearing)
+                            .tilt(map.cameraPosition.tilt)
+                            .build()
+                        map.animateCamera(
+                            org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(newPosition)
+                        )
+                        onAwayFromUserLocationChange(false)
+                        return@getMapAsync
+                    }
+
+                    if (!isTrackingUserLocation) {
                         return@getMapAsync
                     }
 
                     val target = LatLng(location.latitude, location.longitude)
                     val currentTarget = map.cameraPosition.target ?: return@getMapAsync
+                    val desiredBearing = resolveTrackingBearing(map.cameraPosition.bearing, location)
+                    val bearingChange = angularDistanceDegrees(map.cameraPosition.bearing, desiredBearing)
                     val distanceBuffer = FloatArray(1)
                     Location.distanceBetween(
                         currentTarget.latitude,
@@ -172,11 +235,15 @@ fun NavigateScreen(
                         distanceBuffer
                     )
 
-                    if (distanceBuffer[0] >= RECENTER_DISTANCE_METERS) {
+                    val shouldRecenter = distanceBuffer[0] >= RECENTER_DISTANCE_METERS
+                    val shouldRotate = bearingChange >= BEARING_UPDATE_THRESHOLD_DEGREES
+
+                    if (shouldRecenter || shouldRotate) {
+                        val cameraTarget = if (shouldRecenter) target else currentTarget
                         val newPosition = CameraPosition.Builder()
-                            .target(target)
+                            .target(cameraTarget)
                             .zoom(map.cameraPosition.zoom)
-                            .bearing(map.cameraPosition.bearing)
+                            .bearing(desiredBearing)
                             .tilt(map.cameraPosition.tilt)
                             .build()
                         map.animateCamera(
@@ -187,6 +254,51 @@ fun NavigateScreen(
             }
         }
     )
+}
+
+private fun ensureTerrainHazardLayers(style: Style) {
+    if (style.getSourceAs<GeoJsonSource>(TERRAIN_SOURCE_ID) == null) {
+        style.addSource(GeoJsonSource(TERRAIN_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf())))
+    }
+
+    if (style.getLayer(TERRAIN_YELLOW_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(TERRAIN_YELLOW_LAYER_ID, TERRAIN_SOURCE_ID)
+                .withFilter(eq(get(TERRAIN_SEVERITY_KEY), literal(TERRAIN_SEVERITY_NEAR)))
+                .withProperties(
+                    circleColor("#FFC107"),
+                    circleRadius(5f),
+                    circleOpacity(0.78f)
+                )
+        )
+    }
+
+    if (style.getLayer(TERRAIN_RED_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(TERRAIN_RED_LAYER_ID, TERRAIN_SOURCE_ID)
+                .withFilter(eq(get(TERRAIN_SEVERITY_KEY), literal(TERRAIN_SEVERITY_CONFLICT)))
+                .withProperties(
+                    circleColor("#E53935"),
+                    circleRadius(6.5f),
+                    circleOpacity(0.86f)
+                )
+        )
+    }
+}
+
+private fun buildTerrainHazardFeatureCollection(samples: List<TerrainHazardSample>): FeatureCollection {
+    val features = samples.map { sample ->
+        Feature.fromGeometry(Point.fromLngLat(sample.longitude, sample.latitude)).apply {
+            addStringProperty(TERRAIN_SEVERITY_KEY, sample.level.toSeverityTag())
+        }
+    }
+
+    return FeatureCollection.fromFeatures(features)
+}
+
+private fun TerrainHazardLevel.toSeverityTag(): String = when (this) {
+    TerrainHazardLevel.NearConflict -> TERRAIN_SEVERITY_NEAR
+    TerrainHazardLevel.Conflict -> TERRAIN_SEVERITY_CONFLICT
 }
 
 private fun normalizeBearing(rawBearing: Double): Double {
@@ -208,4 +320,27 @@ private fun isAwayFromUserLocation(mapTarget: LatLng?, userLocation: FlightLocat
         distanceBuffer
     )
     return distanceBuffer[0] >= AWAY_FROM_USER_DISTANCE_METERS
+}
+
+private fun shouldShowRecenter(
+    mapTarget: LatLng?,
+    userLocation: FlightLocation?,
+    isTrackingUserLocation: Boolean
+): Boolean {
+    if (isTrackingUserLocation) {
+        return false
+    }
+    return isAwayFromUserLocation(mapTarget = mapTarget, userLocation = userLocation)
+}
+
+private fun resolveTrackingBearing(currentBearing: Double, location: FlightLocation): Double {
+    val rawBearing = location.bearingDegrees.toDouble()
+    val isBearingValid = rawBearing.isFinite() && rawBearing >= 0.0 && rawBearing <= 360.0
+    val isMoving = location.speedMetersPerSecond >= MIN_MOVEMENT_SPEED_MPS
+    return if (isMoving && isBearingValid) rawBearing else currentBearing
+}
+
+private fun angularDistanceDegrees(from: Double, to: Double): Double {
+    val diff = kotlin.math.abs(normalizeBearing(to) - normalizeBearing(from))
+    return if (diff > 180.0) 360.0 - diff else diff
 }

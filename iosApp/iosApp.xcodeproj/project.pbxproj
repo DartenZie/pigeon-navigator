@@ -11,6 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		347642402F8DA8B100C1B26F /* 2241_9gv9e80q1_1526-track-EGM96_avg.gpx */ = {isa = PBXFileReference; lastKnownFileType = text.xml; name = "2241_9gv9e80q1_1526-track-EGM96_avg.gpx"; path = "../../../../Downloads/2241_9gv9e80q1_1526-track-EGM96_avg.gpx"; sourceTree = "<group>"; };
 		BB412ADEF45BA9A40629CFF5 /* PigeonNavigator.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PigeonNavigator.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -55,6 +56,7 @@
 		54DD00B4E26AAF4295E6501B = {
 			isa = PBXGroup;
 			children = (
+				347642402F8DA8B100C1B26F /* 2241_9gv9e80q1_1526-track-EGM96_avg.gpx */,
 				7318A6B6294F09B19D4C9192 /* Configuration */,
 				6848E0EDD2276B9861FCCF86 /* iosApp */,
 				AB883F40650EBBF797C47C35 /* Products */,

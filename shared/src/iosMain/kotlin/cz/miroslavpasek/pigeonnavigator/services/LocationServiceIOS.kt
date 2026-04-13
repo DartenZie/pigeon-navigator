@@ -29,6 +29,7 @@ class LocationServiceIOS : LocationService {
      */
     override fun observeLocationUpdates(): Flow<FlightLocation> = callbackFlow {
         val manager = CLLocationManager()
+        var retainedDelegate: NSObject? = null
 
         val sendRequiresPermission = {
             trySend(
@@ -64,6 +65,14 @@ class LocationServiceIOS : LocationService {
                 }
             }
 
+            override fun locationManagerDidChangeAuthorization(manager: CLLocationManager) {
+                if (!isAuthorized(CLLocationManager.authorizationStatus())) {
+                    sendRequiresPermission()
+                } else {
+                    manager.startUpdatingLocation()
+                }
+            }
+
             override fun locationManager(
                 manager: CLLocationManager,
                 didUpdateLocations: List<*>
@@ -89,11 +98,12 @@ class LocationServiceIOS : LocationService {
                 manager: CLLocationManager,
                 didFailWithError: NSError
             ) {
-                // Errors are currently ignored to keep the stream active.
+                println("[LocationServiceIOS] GPS signal lost: ${didFailWithError.localizedDescription}")
             }
         }
 
         manager.delegate = delegate
+        retainedDelegate = delegate
 
         if (isAuthorized(CLLocationManager.authorizationStatus())) {
             manager.startUpdatingLocation()
@@ -102,6 +112,7 @@ class LocationServiceIOS : LocationService {
         awaitClose {
             manager.stopUpdatingLocation()
             manager.delegate = null
+            retainedDelegate = null
         }
     }
 

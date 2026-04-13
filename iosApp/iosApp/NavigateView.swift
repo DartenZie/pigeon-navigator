@@ -8,10 +8,12 @@
 import SwiftUI
 import MapLibre
 import CoreLocation
+import UIKit
 import Shared
 
 struct NavigateView: UIViewRepresentable {
     let location: CLLocationCoordinate2D?
+    var terrainHazardPoints: [TerrainHazardOverlayPoint] = []
     var followUser: Bool = true
     var zoomLevel = 10.5
     var onDirectionChange: (CLLocationDirection) -> Void = { _ in }
@@ -39,7 +41,11 @@ struct NavigateView: UIViewRepresentable {
         mapView.allowsRotating = true
         mapView.allowsTilting = true
         mapView.compassView.isHidden = true
-        
+
+        mapView.gestureRecognizers?
+            .compactMap { $0 as? UIPanGestureRecognizer }
+            .forEach { $0.addTarget(context.coordinator, action: #selector(Coordinator.handlePanGesture(_:))) }
+
         return mapView
     }
 
@@ -126,17 +132,23 @@ struct NavigateView: UIViewRepresentable {
 
         context.coordinator.onDirectionChange = onDirectionChange
         context.coordinator.onAwayFromUserLocationChange = onAwayFromUserLocationChange
+        context.coordinator.renderTerrainHazardsTemplate(
+            mapView,
+            points: terrainHazardPoints
+        )
 
         if context.coordinator.lastResetNorthToken != resetNorthToken {
             context.coordinator.lastResetNorthToken = resetNorthToken
             mapView.setDirection(0, animated: true)
         }
 
-        if context.coordinator.lastRecenterOnUserToken != recenterOnUserToken,
-           let userLocation = context.coordinator.lastKnownUserLocation {
+        if context.coordinator.lastRecenterOnUserToken != recenterOnUserToken {
             context.coordinator.lastRecenterOnUserToken = recenterOnUserToken
-            mapView.setCenter(userLocation, zoomLevel: mapView.zoomLevel, animated: true)
-            context.coordinator.setAwayFromUserLocation(false)
+            context.coordinator.isTrackingUserLocation = true
+            if let userLocation = context.coordinator.lastKnownUserLocation {
+                mapView.setCenter(userLocation, zoomLevel: mapView.zoomLevel, animated: true)
+                context.coordinator.setAwayFromUserLocation(false)
+            }
         }
         
         guard followUser, let loc = location else { return }
@@ -152,10 +164,20 @@ struct NavigateView: UIViewRepresentable {
             mapView.setCenter(loc, zoomLevel: zoomLevel, animated: false)
             context.coordinator.lastCenter = loc
             context.coordinator.lastFollowLocation = newLocation
+            context.coordinator.didCenterOnFirstGpsFix = true
             context.coordinator.evaluateAwayFromUserLocation(mapView)
         } else {
+            if !context.coordinator.didCenterOnFirstGpsFix {
+                context.coordinator.didCenterOnFirstGpsFix = true
+                mapView.setCenter(loc, zoomLevel: mapView.zoomLevel, animated: true)
+                context.coordinator.lastCenter = loc
+                context.coordinator.lastFollowLocation = newLocation
+                context.coordinator.evaluateAwayFromUserLocation(mapView)
+                return
+            }
+
             guard context.coordinator.shouldFollowForLocation(newLocation) else { return }
-            guard !context.coordinator.isAwayFromUserLocation else { return }
+            guard context.coordinator.isTrackingUserLocation else { return }
 
             let currentCenter = mapView.centerCoordinate
             let current = CLLocation(latitude: currentCenter.latitude, longitude: currentCenter.longitude)
@@ -173,10 +195,12 @@ struct NavigateView: UIViewRepresentable {
     
     final class Coordinator: NSObject, MLNMapViewDelegate {
         var didSetInitialCamera = false
+        var didCenterOnFirstGpsFix = false
         var lastCenter: CLLocationCoordinate2D?
         var lastFollowLocation: CLLocation?
         var lastKnownUserLocation: CLLocationCoordinate2D?
         var isAwayFromUserLocation = false
+        var isTrackingUserLocation = true
         var onDirectionChange: (CLLocationDirection) -> Void
         var onAwayFromUserLocationChange: (Bool) -> Void
         let awayFromUserDistanceMeters: CLLocationDistance
@@ -191,6 +215,13 @@ struct NavigateView: UIViewRepresentable {
             self.onDirectionChange = onDirectionChange
             self.onAwayFromUserLocationChange = onAwayFromUserLocationChange
             self.awayFromUserDistanceMeters = awayFromUserDistanceMeters
+        }
+
+        @objc
+        func handlePanGesture(_ recognizer: UIPanGestureRecognizer) {
+            if recognizer.state == .began {
+                isTrackingUserLocation = false
+            }
         }
 
         func shouldFollowForLocation(_ location: CLLocation) -> Bool {
@@ -238,6 +269,11 @@ struct NavigateView: UIViewRepresentable {
         func mapView(_ mapView: MLNMapView, regionDidChangeAnimated animated: Bool) {
             onDirectionChange(mapView.direction)
             evaluateAwayFromUserLocation(mapView)
+        }
+
+        func renderTerrainHazardsTemplate(_ mapView: MLNMapView, points: [TerrainHazardOverlayPoint]) {
+            _ = mapView
+            _ = points
         }
     }
 }

@@ -22,6 +22,7 @@ struct ContentView: View {
             ZStack(alignment: .bottom) {
                 NavigateView(
                     location: coordinate,
+                    terrainHazardPoints: [],
                     followUser: true,
                     onDirectionChange: { direction in
                         mapDirection = direction

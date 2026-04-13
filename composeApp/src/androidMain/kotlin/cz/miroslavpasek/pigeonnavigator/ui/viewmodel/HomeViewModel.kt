@@ -3,6 +3,7 @@ package cz.miroslavpasek.pigeonnavigator.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainWarningLevel
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarningStore
@@ -18,7 +19,8 @@ data class HomeUIState(
     val location: FlightLocation? = null,
     val requiresPermission: Boolean = false,
     val terrainWarningLevel: TerrainWarningLevel = TerrainWarningLevel.None,
-    val terrainDistanceToImpactMeters: Double? = null
+    val terrainDistanceToImpactMeters: Double? = null,
+    val terrainHazardSamples: List<TerrainHazardSample> = emptyList()
 )
 
 class HomeViewModel(
@@ -71,9 +73,16 @@ class HomeViewModel(
         terrainStateJob = viewModelScope.launch {
             terrainWarningStore.state.collect { warningState ->
                 _uiState.update {
+                    val hazardSamples = if (warningState.warningLevel == TerrainWarningLevel.None) {
+                        emptyList()
+                    } else {
+                        warningState.prediction?.hazardSamples ?: emptyList()
+                    }
+
                     it.copy(
                         terrainWarningLevel = warningState.warningLevel,
-                        terrainDistanceToImpactMeters = warningState.prediction?.distanceToImpactMeters
+                        terrainDistanceToImpactMeters = warningState.prediction?.distanceToImpactMeters,
+                        terrainHazardSamples = hazardSamples
                     )
                 }
             }

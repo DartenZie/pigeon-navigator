@@ -42,6 +42,7 @@ class DetectTerrainConflictUseCase(
         var nearestImpactDistanceMeters: Double? = null
         var validSampleCount = 0
         var outOfCoverageCount = 0
+        val hazardSamples = mutableListOf<TerrainHazardSample>()
 
         for (bearing in bearings) {
             var distanceMeters = 0.0
@@ -69,8 +70,19 @@ class DetectTerrainConflictUseCase(
                         minClearanceMeters = min(minClearanceMeters, clearanceMeters)
 
                         if (clearanceMeters < 0.0) {
+                            hazardSamples += TerrainHazardSample(
+                                latitude = samplePoint.first,
+                                longitude = samplePoint.second,
+                                level = TerrainHazardLevel.Conflict
+                            )
                             nearestImpactDistanceMeters = minPositive(nearestImpactDistanceMeters, distanceMeters)
                             break
+                        } else if (clearanceMeters <= parameters.cautionClearanceMeters) {
+                            hazardSamples += TerrainHazardSample(
+                                latitude = samplePoint.first,
+                                longitude = samplePoint.second,
+                                level = TerrainHazardLevel.NearConflict
+                            )
                         }
                     }
 
@@ -110,7 +122,8 @@ class DetectTerrainConflictUseCase(
                 warningLevel = warningLevel,
                 minClearanceMeters = minClearanceMeters,
                 distanceToImpactMeters = nearestImpactDistanceMeters,
-                timeToImpactSeconds = timeToImpactSeconds
+                timeToImpactSeconds = timeToImpactSeconds,
+                hazardSamples = hazardSamples
             )
         )
     }
