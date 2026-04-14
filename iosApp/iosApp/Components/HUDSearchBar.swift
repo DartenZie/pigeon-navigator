@@ -8,8 +8,8 @@ struct ExpandableSearchPanel: View {
     let selectedLongitude: Double?
     let isLoading: Bool
     let errorMessage: String?
-    let airports: [NearbyAirport]
-    let airspaces: [Airspace]
+    let airports: [MapTapAirportItem]
+    let airspaces: [MapTapAirspaceItem]
 
     @State private var query: String = ""
     @State private var stage: ExpansionStage = .collapsed
@@ -181,7 +181,7 @@ struct ExpandableSearchPanel: View {
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             } else {
-                                ForEach(airports, id: \.airport.id) { airport in
+                                ForEach(airports, id: \.id) { airport in
                                     AirportRow(airport: airport)
                                 }
                             }
@@ -251,7 +251,7 @@ struct ExpandableSearchPanel: View {
 }
 
 private struct AirportRow: View {
-    let airport: NearbyAirport
+    let airport: MapTapAirportItem
 
     var body: some View {
         HStack(spacing: 10) {
@@ -260,10 +260,10 @@ private struct AirportRow: View {
                 .foregroundStyle(.blue)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(airport.airport.id)
+                Text(airport.id)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                Text(airport.airport.name)
+                Text(airport.name)
                     .font(.footnote)
                     .lineLimit(1)
                     .foregroundStyle(.secondary)
@@ -271,7 +271,7 @@ private struct AirportRow: View {
 
             Spacer(minLength: 0)
 
-            Text(formatDistance(airport.distanceMeters))
+            Text(airport.distanceLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -279,43 +279,18 @@ private struct AirportRow: View {
 }
 
 private struct AirspaceRow: View {
-    let airspace: Airspace
+    let airspace: MapTapAirspaceItem
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(airspace.name.isEmpty ? airspace.id : airspace.name)
                 .font(.subheadline)
                 .fontWeight(.semibold)
-            Text("\(airspace.kind) · \(formatAltitudeBand(airspace))")
+            Text(airspace.detail)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
     }
-}
-
-private func formatDistance(_ distanceMeters: Double) -> String {
-    if distanceMeters >= 1000 {
-        return String(format: "%.1f km", distanceMeters / 1000.0)
-    }
-    return "\(Int(distanceMeters.rounded())) m"
-}
-
-private func formatAltitudeBand(_ airspace: Airspace) -> String {
-    let lower = {
-        if let meters = airspace.lowerLimitMeters {
-            return "\(meters)m \(airspace.lowerLimitReference ?? "")".trimmingCharacters(in: .whitespaces)
-        }
-        return "SFC"
-    }()
-
-    let upper = {
-        if let meters = airspace.upperLimitMeters {
-            return "\(meters)m \(airspace.upperLimitReference ?? "")".trimmingCharacters(in: .whitespaces)
-        }
-        return "UNL"
-    }()
-
-    return "\(lower) - \(upper)"
 }
 
 private struct HUDSearchBarGlassStyle: ViewModifier {

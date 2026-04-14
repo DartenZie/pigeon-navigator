@@ -117,8 +117,8 @@ final class MapTapLookupViewModelWrapper: ObservableObject {
     @Published var selectedLongitude: Double? = nil
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
-    @Published var airports: [NearbyAirport] = []
-    @Published var airspaces: [Airspace] = []
+    @Published var airports: [MapTapAirportItem] = []
+    @Published var airspaces: [MapTapAirspaceItem] = []
 
     init() {
         self.handle = MapTapLookupHelper.resolve()

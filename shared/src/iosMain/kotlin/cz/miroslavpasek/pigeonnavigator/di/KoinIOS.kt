@@ -22,6 +22,7 @@ import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import org.koin.dsl.module
+import kotlin.math.roundToInt
 
 private class IosDispatcherProvider : DispatcherProvider {
     override val main: CoroutineDispatcher = Dispatchers.Main
@@ -146,10 +147,10 @@ class MapTapLookupHandle(
     private var stateJob: Job? = null
 
     /** Starts collecting state updates until [stopState] or [close] is called. */
-    fun startState(onEach: (MapTapLookupState) -> Unit) {
+    fun startState(onEach: (MapTapLookupViewState) -> Unit) {
         if (stateJob != null) return
         stateJob = scope.launch {
-            coordinator.state.collect { onEach(it) }
+            coordinator.state.collect { onEach(it.toViewState()) }
         }
     }
 
@@ -170,4 +171,62 @@ class MapTapLookupHandle(
         scope.cancel()
         coordinator.close()
     }
+}
+
+data class MapTapAirportItem(
+    val id: String,
+    val name: String,
+    val distanceLabel: String
+)
+
+data class MapTapAirspaceItem(
+    val id: String,
+    val name: String,
+    val detail: String
+)
+
+data class MapTapLookupViewState(
+    val selectedLatitude: Double? = null,
+    val selectedLongitude: Double? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null,
+    val airports: List<MapTapAirportItem> = emptyList(),
+    val airspaces: List<MapTapAirspaceItem> = emptyList()
+)
+
+private fun MapTapLookupState.toViewState(): MapTapLookupViewState {
+    return MapTapLookupViewState(
+        selectedLatitude = selectedLatitude,
+        selectedLongitude = selectedLongitude,
+        isLoading = isLoading,
+        errorMessage = errorMessage,
+        airports = airports.map {
+            MapTapAirportItem(
+                id = it.airport.id,
+                name = it.airport.name,
+                distanceLabel = it.distanceMeters.toDistanceLabel()
+            )
+        },
+        airspaces = airspaces.map {
+            MapTapAirspaceItem(
+                id = it.id,
+                name = it.name,
+                detail = "${it.kind} · ${it.toAltitudeBand()}"
+            )
+        }
+    )
+}
+
+private fun Double.toDistanceLabel(): String {
+    return if (this >= 1000.0) {
+        "${(this / 1000.0 * 10.0).roundToInt() / 10.0} km"
+    } else {
+        "${roundToInt()} m"
+    }
+}
+
+private fun cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace.toAltitudeBand(): String {
+    val lower = lowerLimitMeters?.let { "${it}m ${lowerLimitReference.orEmpty()}".trim() } ?: "SFC"
+    val upper = upperLimitMeters?.let { "${it}m ${upperLimitReference.orEmpty()}".trim() } ?: "UNL"
+    return "$lower - $upper"
 }

@@ -52,16 +52,10 @@ struct NavigateView: UIViewRepresentable {
     }
 
     private func resolveStyleURL() -> URL? {
-        let styleProvider = MapStyleProvider(
-            config: MapStyleConfig(
-                baseStyleAssetPath: "style.json",
-                pmtilesSourceId: "pmtiles-source",
-                tileArchiveLocation: TileArchiveLocationAsset(assetPath: "cz.pmtiles")
-            ),
-            assetLoader: PlatformAssetLoader(),
-            urlResolver: PmtilesUrlResolver(tileArchiveFileStore: TileArchiveFileStore())
-        )
-        let rawStyleJson = styleProvider.getStyleJson()
+        let styleBridge = MapStyleBridge()
+        guard let rawStyleJson = styleBridge.resolveStyleJson() else {
+            return nil
+        }
         let styleJson = normalizeStyleForIOS(styleJson: rawStyleJson)
         let outputDir = FileManager.default.temporaryDirectory.appendingPathComponent("map-style", isDirectory: true)
         let outputFile = outputDir.appendingPathComponent("style.generated.json")
