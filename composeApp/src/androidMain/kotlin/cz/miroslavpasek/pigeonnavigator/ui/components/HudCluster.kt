@@ -20,8 +20,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import kotlin.math.min
 
 val BubbleSize = 64.dp
@@ -35,6 +37,8 @@ fun HudCluster(
     altitudeMeters: Int,
     mapDirection: Double,
     isRecenterVisible: Boolean,
+    mapTapLookup: MapTapLookupState,
+    maxSearchPanelHeight: Dp,
     onCompassTap: () -> Unit,
     onRecenterTap: () -> Unit,
     modifier: Modifier = Modifier
@@ -96,6 +100,8 @@ fun HudCluster(
         }
 
         SearchDock(
+            mapTapLookup = mapTapLookup,
+            maxPanelHeight = maxSearchPanelHeight,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)

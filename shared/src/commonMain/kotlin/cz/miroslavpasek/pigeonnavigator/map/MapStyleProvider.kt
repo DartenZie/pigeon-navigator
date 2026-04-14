@@ -39,19 +39,20 @@ class MapStyleProvider(
     private var cachedStyleJson: String? = null
 
     /**
-     * Returns runtime style JSON with terrain source and hillshade injected.
+     * Returns runtime style JSON with terrain source and hillshade injected,
+     * or null when no active package is installed yet.
      */
-    fun getStyleJson(): String {
+    fun getStyleJson(): String? {
         cachedStyleJson?.let { return it }
 
+        val resolvedConfig = resolveActiveConfig() ?: return null
         val baseStyle = assetLoader.readText(config.baseStyleAssetPath)
-        val resolvedConfig = resolveActiveConfig()
         val styleJson = injectSourcesAndHillshade(baseStyle, resolvedConfig)
         cachedStyleJson = styleJson
         return styleJson
     }
 
-    private fun resolveActiveConfig(): MapStyleConfig {
+    private fun resolveActiveConfig(): MapStyleConfig? {
         val active = runBlocking { getActiveMapPackageUseCase() }
         return when (active) {
             is AppResult.Success -> config.copy(
@@ -59,7 +60,7 @@ class MapStyleProvider(
                 terrainArchiveLocation = TileArchiveLocation.LocalFile(active.value.terrainPmtilesAbsolutePath)
             )
 
-            is AppResult.Failure -> error("No active OFPKG package available for map style")
+            is AppResult.Failure -> null
         }
     }
 

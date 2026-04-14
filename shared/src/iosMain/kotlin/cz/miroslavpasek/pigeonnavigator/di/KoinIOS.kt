@@ -1,5 +1,7 @@
 package cz.miroslavpasek.pigeonnavigator.di
 
+import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupCoordinator
+import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvider
 import cz.miroslavpasek.pigeonnavigator.data.aviation.AviationPackageBootstrapper
 import cz.miroslavpasek.pigeonnavigator.data.aviation.di.aviationDataModule
@@ -31,6 +33,16 @@ private val iosDispatcherModule = module {
     single<DispatcherProvider> { IosDispatcherProvider() }
 }
 
+private val iosMapTapLookupModule = module {
+    factory {
+        MapTapLookupCoordinator(
+            queryNearbyAirportsUseCase = get(),
+            queryContainingAirspacesUseCase = get(),
+            dispatcherProvider = get()
+        )
+    }
+}
+
 /**
  * Starts Koin with shared and search feature modules for iOS.
  */
@@ -39,6 +51,7 @@ fun initKoin() {
         modules(
             sharedModule,
             iosDispatcherModule,
+            iosMapTapLookupModule,
             aviationDataModule(),
             searchDataModule(),
             searchFeatureModule()
@@ -58,6 +71,9 @@ class KoinHelper {
      * Returns a lifecycle-managed bridge over [SearchStore] for Swift UI layers.
      */
     fun getSearchStoreHandle(): SearchStoreHandle = SearchStoreHandle(KoinPlatform.getKoin().get())
+
+    /** Returns a lifecycle-managed bridge over [MapTapLookupCoordinator] for Swift UI layers. */
+    fun getMapTapLookupHandle(): MapTapLookupHandle = MapTapLookupHandle(KoinPlatform.getKoin().get())
 }
 
 /**
@@ -119,5 +135,39 @@ class SearchStoreHandle(
         stopEffects()
         scope.cancel()
         store.close()
+    }
+}
+
+/** Bridges [MapTapLookupCoordinator] state and queries to a Swift-friendly API surface. */
+class MapTapLookupHandle(
+    private val coordinator: MapTapLookupCoordinator
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var stateJob: Job? = null
+
+    /** Starts collecting state updates until [stopState] or [close] is called. */
+    fun startState(onEach: (MapTapLookupState) -> Unit) {
+        if (stateJob != null) return
+        stateJob = scope.launch {
+            coordinator.state.collect { onEach(it) }
+        }
+    }
+
+    /** Stops state collection started by [startState]. */
+    fun stopState() {
+        stateJob?.cancel()
+        stateJob = null
+    }
+
+    /** Requests a lookup around the tapped coordinate. */
+    fun queryAt(latitude: Double, longitude: Double) {
+        coordinator.queryAt(latitude = latitude, longitude = longitude)
+    }
+
+    /** Stops active jobs and closes the underlying coordinator. */
+    fun close() {
+        stopState()
+        scope.cancel()
+        coordinator.close()
     }
 }

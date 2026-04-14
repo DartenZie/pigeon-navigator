@@ -14,10 +14,14 @@ actual class PackageAssetResolver {
         }
 
         val destination = File(targetDir, assetPath.substringAfterLast('/'))
+        if (destination.exists() && destination.length() > 0) {
+            return destination.absolutePath
+        }
+
         return runCatching {
             context.assets.open(assetPath).use { input ->
                 destination.outputStream().use { output ->
-                    input.copyTo(output)
+                    input.copyTo(output, bufferSize = 64 * 1024)
                 }
             }
             destination.absolutePath

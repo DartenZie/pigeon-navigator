@@ -1,11 +1,16 @@
 package cz.miroslavpasek.pigeonnavigator.ui
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -28,6 +33,26 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     var isAwayFromUserLocation by remember { mutableStateOf(false) }
     var resetNorthToken by remember { mutableIntStateOf(0) }
     var recenterOnUserToken by remember { mutableIntStateOf(0) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        val hasLocationPermission = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (hasLocationPermission) {
+            vm.refreshLocation()
+        }
+    }
+
+    LaunchedEffect(state.requiresPermission) {
+        if (state.requiresPermission) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
 
     val altitudeMeters = state.location?.altitudeMeters?.roundToInt() ?: 0
     val speedKmh = state.location
@@ -37,30 +62,39 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         ?: 0
 
     MaterialTheme {
-        Box(modifier = Modifier.fillMaxSize()) {
-            NavigateScreen(
-                location = state.location,
-                terrainHazardSamples = state.terrainHazardSamples,
-                followUser = true,
-                onDirectionChange = { mapDirection = it },
-                onAwayFromUserLocationChange = { isAwayFromUserLocation = it },
-                resetNorthToken = resetNorthToken,
-                recenterOnUserToken = recenterOnUserToken,
-                modifier = Modifier.fillMaxSize()
-            )
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val maxSearchPanelHeight = maxHeight * 0.72f
 
-            HudCluster(
-                speedKmh = speedKmh,
-                altitudeMeters = altitudeMeters,
-                mapDirection = mapDirection,
-                isRecenterVisible = isAwayFromUserLocation,
-                onCompassTap = { resetNorthToken += 1 },
-                onRecenterTap = { recenterOnUserToken += 1 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 16.dp, vertical = 18.dp)
-                    .navigationBarsPadding()
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                NavigateScreen(
+                    location = state.location,
+                    terrainHazardSamples = state.terrainHazardSamples,
+                    followUser = true,
+                    onDirectionChange = { mapDirection = it },
+                    onMapTap = { latitude, longitude ->
+                        vm.onMapTapped(latitude = latitude, longitude = longitude)
+                    },
+                    onAwayFromUserLocationChange = { isAwayFromUserLocation = it },
+                    resetNorthToken = resetNorthToken,
+                    recenterOnUserToken = recenterOnUserToken,
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                HudCluster(
+                    speedKmh = speedKmh,
+                    altitudeMeters = altitudeMeters,
+                    mapDirection = mapDirection,
+                    isRecenterVisible = isAwayFromUserLocation,
+                    mapTapLookup = state.mapTapLookup,
+                    maxSearchPanelHeight = maxSearchPanelHeight,
+                    onCompassTap = { resetNorthToken += 1 },
+                    onRecenterTap = { recenterOnUserToken += 1 },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(horizontal = 16.dp, vertical = 18.dp)
+                        .navigationBarsPadding()
+                )
+            }
         }
     }
 }

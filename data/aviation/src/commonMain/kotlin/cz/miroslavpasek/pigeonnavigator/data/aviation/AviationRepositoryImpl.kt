@@ -4,7 +4,7 @@ import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.data.aviation.db.AviationDatabase
 import cz.miroslavpasek.pigeonnavigator.data.aviation.internal.GeoMath
 import cz.miroslavpasek.pigeonnavigator.data.aviation.internal.NavSnapshotParser
-import cz.miroslavpasek.pigeonnavigator.data.aviation.internal.OfpkgArchive
+import cz.miroslavpasek.pigeonnavigator.data.aviation.internal.ZipFileReader
 import cz.miroslavpasek.pigeonnavigator.data.aviation.internal.ParsedNavSnapshot
 import cz.miroslavpasek.pigeonnavigator.data.aviation.platform.OfpkgInstallLogger
 import cz.miroslavpasek.pigeonnavigator.data.aviation.platform.PackageAssetResolver
@@ -44,19 +44,40 @@ class AviationRepositoryImpl(
         val installStartedAt = nowEpochMillis()
         val packagePath = resolveSourcePath(source) ?: return AppResult.Failure(Failure.DataUnavailable)
         logInstall("Install started from $packagePath")
-        val packageBytes = fileSystem.readBytes(packagePath) ?: return AppResult.Failure(Failure.DataUnavailable)
 
-        val archive = OfpkgArchive(packageBytes)
+        val fileSize = fileSystem.fileSize(packagePath) ?: return AppResult.Failure(Failure.DataUnavailable)
+        val archive = ZipFileReader(packagePath, fileSize, fileSystem)
+
+        // Small entries: read into memory (cheap)
         val manifestBytes = archive.readEntry(MANIFEST_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
         val checksumsBytes = archive.readEntry(CHECKSUMS_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
         val navXmlBytes = archive.readEntry(NAV_XML_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
-        val mapPmtilesBytes = archive.readEntry(MAP_PMTILES_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
-        val terrainPmtilesBytes = archive.readEntry(TERRAIN_PMTILES_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
+
+        // Large entries: resolve data ranges (no byte-array copy)
+        val mapRange = archive.entryDataRange(MAP_PMTILES_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
+        val terrainRange = archive.entryDataRange(TERRAIN_PMTILES_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
+
+        // Compute hashes without loading large entries into the heap
+        val navXmlHash = hasher.hashHex(navXmlBytes)
+        val mapHash = if (mapRange.isStored) {
+            fileSystem.hashFileRange(packagePath, mapRange.dataStart, mapRange.length)
+                ?: return AppResult.Failure(Failure.DataUnavailable)
+        } else {
+            val decompressed = archive.readEntry(MAP_PMTILES_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
+            hasher.hashHex(decompressed)
+        }
+        val terrainHash = if (terrainRange.isStored) {
+            fileSystem.hashFileRange(packagePath, terrainRange.dataStart, terrainRange.length)
+                ?: return AppResult.Failure(Failure.DataUnavailable)
+        } else {
+            val decompressed = archive.readEntry(TERRAIN_PMTILES_PATH) ?: return AppResult.Failure(Failure.DataUnavailable)
+            hasher.hashHex(decompressed)
+        }
 
         val checksumMap = parseChecksumFile(checksumsBytes.decodeToString())
-        if (!verifyChecksum(checksumMap, NAV_XML_PATH, navXmlBytes) ||
-            !verifyChecksum(checksumMap, MAP_PMTILES_PATH, mapPmtilesBytes) ||
-            !verifyChecksum(checksumMap, TERRAIN_PMTILES_PATH, terrainPmtilesBytes)
+        if (!verifyChecksumHash(checksumMap, NAV_XML_PATH, navXmlHash) ||
+            !verifyChecksumHash(checksumMap, MAP_PMTILES_PATH, mapHash) ||
+            !verifyChecksumHash(checksumMap, TERRAIN_PMTILES_PATH, terrainHash)
         ) {
             return AppResult.Failure(Failure.DataUnavailable)
         }
@@ -81,9 +102,10 @@ class AviationRepositoryImpl(
         val terrainOutputPath = pathJoin(tempInstallPath, TERRAIN_PMTILES_NAME)
         val xmlOutputPath = pathJoin(tempInstallPath, NAV_XML_NAME)
 
-        val writesSucceeded = fileSystem.writeBytes(mapOutputPath, mapPmtilesBytes) &&
-            fileSystem.writeBytes(terrainOutputPath, terrainPmtilesBytes) &&
-            fileSystem.writeBytes(xmlOutputPath, navXmlBytes)
+        // Write files — STORED entries stream file-to-file, never enter heap
+        val mapWriteOk = writeLargeEntry(archive, packagePath, MAP_PMTILES_PATH, mapRange.isStored, mapRange.dataStart, mapRange.length, mapOutputPath)
+        val terrainWriteOk = writeLargeEntry(archive, packagePath, TERRAIN_PMTILES_PATH, terrainRange.isStored, terrainRange.dataStart, terrainRange.length, terrainOutputPath)
+        val writesSucceeded = mapWriteOk && terrainWriteOk && fileSystem.writeBytes(xmlOutputPath, navXmlBytes)
 
         if (!writesSucceeded) {
             fileSystem.deleteRecursively(tempInstallPath)
@@ -119,9 +141,9 @@ class AviationRepositoryImpl(
                     is_active = 1,
                     map_pmtiles_path = finalMapPath,
                     terrain_pmtiles_path = finalTerrainPath,
-                    xml_sha256 = hasher.hashHex(navXmlBytes),
-                    map_sha256 = hasher.hashHex(mapPmtilesBytes),
-                    terrain_sha256 = hasher.hashHex(terrainPmtilesBytes)
+                    xml_sha256 = navXmlHash,
+                    map_sha256 = mapHash,
+                    terrain_sha256 = terrainHash
                 )
                 insertAviationData(packageId = packageId, snapshot = parsedNavSnapshot)
             }
@@ -386,9 +408,31 @@ class AviationRepositoryImpl(
             .toMap()
     }
 
-    private fun verifyChecksum(checksumMap: Map<String, String>, path: String, bytes: ByteArray): Boolean {
+    private fun verifyChecksumHash(checksumMap: Map<String, String>, path: String, hash: String): Boolean {
         val expected = checksumMap[path]?.lowercase() ?: return false
-        return hasher.hashHex(bytes).lowercase() == expected
+        return hash.lowercase() == expected
+    }
+
+    /**
+     * Write a large ZIP entry to [outputPath].
+     * STORED entries are streamed file-to-file without entering the Kotlin heap.
+     * DEFLATED entries are decompressed via the archive reader and written as bytes.
+     */
+    private fun writeLargeEntry(
+        archive: ZipFileReader,
+        packagePath: String,
+        entryName: String,
+        isStored: Boolean,
+        dataStart: Long,
+        length: Long,
+        outputPath: String
+    ): Boolean {
+        return if (isStored) {
+            fileSystem.copyFileRange(packagePath, dataStart, length, outputPath)
+        } else {
+            val decompressed = archive.readEntry(entryName) ?: return false
+            fileSystem.writeBytes(outputPath, decompressed)
+        }
     }
 
     private fun parseManifest(rawManifestJson: String): ParsedManifest {

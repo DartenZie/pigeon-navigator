@@ -1,8 +1,15 @@
 import SwiftUI
+import Shared
 
 struct ExpandableSearchPanel: View {
     let containerSize: CGSize
     let topReservedHeight: CGFloat
+    let selectedLatitude: Double?
+    let selectedLongitude: Double?
+    let isLoading: Bool
+    let errorMessage: String?
+    let airports: [NearbyAirport]
+    let airspaces: [Airspace]
 
     @State private var query: String = ""
     @State private var stage: ExpansionStage = .collapsed
@@ -13,6 +20,10 @@ struct ExpandableSearchPanel: View {
         case collapsed
         case partial
         case full
+    }
+
+    private var hasSelection: Bool {
+        selectedLatitude != nil && selectedLongitude != nil
     }
 
     private var collapsedHeight: CGFloat { 64 }
@@ -53,6 +64,13 @@ struct ExpandableSearchPanel: View {
 
     private var cornerRadius: CGFloat {
         stage == .full ? 0 : 32
+    }
+
+    private var coordinateLabel: String {
+        guard let lat = selectedLatitude, let lon = selectedLongitude else {
+            return "Search"
+        }
+        return String(format: "%.4f, %.4f", lat, lon)
     }
 
     private var handleDragGesture: some Gesture {
@@ -99,7 +117,7 @@ struct ExpandableSearchPanel: View {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.black)
 
-                    TextField("Search", text: $query)
+                    TextField(coordinateLabel, text: $query)
                         .focused($isSearchFocused)
                         .autocorrectionDisabled(true)
 
@@ -130,13 +148,74 @@ struct ExpandableSearchPanel: View {
                     .padding(.top, 4)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        setStage(.partial)
+                        if hasSelection {
+                            setStage(.partial)
+                        }
                     }
                     .gesture(handleDragGesture)
             }
 
             if stage != .collapsed {
-                Spacer(minLength: 0)
+                Divider().padding(.horizontal, 10)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        if isLoading {
+                            Text("Fetching nearby data...")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundStyle(.red)
+                        }
+
+                        Group {
+                            Text("Airports")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+
+                            if airports.isEmpty {
+                                Text("No airports near this point")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(airports, id: \.airport.id) { airport in
+                                    AirportRow(airport: airport)
+                                }
+                            }
+                        }
+
+                        Group {
+                            Text("Airspaces")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.top, 4)
+
+                            if airspaces.isEmpty {
+                                Text("No airspaces contain this point")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ForEach(airspaces, id: \.id) { airspace in
+                                    AirspaceRow(airspace: airspace)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 10)
+                    .padding(.bottom, 18)
+                }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 6)
+                        .onChanged { _ in
+                            if stage == .partial {
+                                setStage(.full)
+                            }
+                        }
+                )
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -151,6 +230,13 @@ struct ExpandableSearchPanel: View {
             guard focused else { return }
             setStage(.full, animated: false)
         }
+        .onChange(of: hasSelection) { value in
+            if value {
+                setStage(.partial)
+            } else {
+                setStage(.collapsed)
+            }
+        }
     }
 
     @ViewBuilder
@@ -162,6 +248,74 @@ struct ExpandableSearchPanel: View {
                 .modifier(HUDSearchBarGlassStyle())
         }
     }
+}
+
+private struct AirportRow: View {
+    let airport: NearbyAirport
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "location.fill")
+                .font(.caption)
+                .foregroundStyle(.blue)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(airport.airport.id)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(airport.airport.name)
+                    .font(.footnote)
+                    .lineLimit(1)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 0)
+
+            Text(formatDistance(airport.distanceMeters))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct AirspaceRow: View {
+    let airspace: Airspace
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(airspace.name.isEmpty ? airspace.id : airspace.name)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Text("\(airspace.kind) · \(formatAltitudeBand(airspace))")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private func formatDistance(_ distanceMeters: Double) -> String {
+    if distanceMeters >= 1000 {
+        return String(format: "%.1f km", distanceMeters / 1000.0)
+    }
+    return "\(Int(distanceMeters.rounded())) m"
+}
+
+private func formatAltitudeBand(_ airspace: Airspace) -> String {
+    let lower = {
+        if let meters = airspace.lowerLimitMeters {
+            return "\(meters)m \(airspace.lowerLimitReference ?? "")".trimmingCharacters(in: .whitespaces)
+        }
+        return "SFC"
+    }()
+
+    let upper = {
+        if let meters = airspace.upperLimitMeters {
+            return "\(meters)m \(airspace.upperLimitReference ?? "")".trimmingCharacters(in: .whitespaces)
+        }
+        return "UNL"
+    }()
+
+    return "\(lower) - \(upper)"
 }
 
 private struct HUDSearchBarGlassStyle: ViewModifier {

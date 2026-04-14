@@ -1,13 +1,17 @@
 package cz.miroslavpasek.pigeonnavigator.ui.screens
 
 import android.location.Location
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -18,6 +22,7 @@ import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.map.MapStyleProvider
+import kotlinx.coroutines.delay
 import org.maplibre.android.style.expressions.Expression.eq
 import org.maplibre.android.style.expressions.Expression.get
 import org.maplibre.android.style.expressions.Expression.literal
@@ -56,6 +61,7 @@ fun NavigateScreen(
     terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
     followUser: Boolean = true,
     onDirectionChange: (Double) -> Unit = {},
+    onMapTap: (latitude: Double, longitude: Double) -> Unit = { _, _ -> },
     onAwayFromUserLocationChange: (Boolean) -> Unit = {},
     resetNorthToken: Int = 0,
     recenterOnUserToken: Int = 0
@@ -64,19 +70,36 @@ fun NavigateScreen(
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val mapStyleProvider = remember { MapStyleProvider() }
 
+    // Wait for the aviation package to be installed before building the style
+    val styleJson by produceState<String?>(initialValue = null) {
+        while (value == null) {
+            value = mapStyleProvider.getStyleJson()
+            if (value == null) delay(250)
+        }
+    }
+
+    if (styleJson == null) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+
+    val resolvedStyleJson = styleJson!!
+
     // Initialize MapLibre once
     MapLibre.getInstance(context)
 
     var didSetInitialCamera by remember { mutableStateOf(false) }
     var didLoadStyle by remember { mutableStateOf(false) }
     var didAttachCameraListener by remember { mutableStateOf(false) }
+    var didAttachMapTapListener by remember { mutableStateOf(false) }
     var lastResetNorthToken by remember { mutableIntStateOf(resetNorthToken) }
     var lastRecenterOnUserToken by remember { mutableIntStateOf(recenterOnUserToken) }
     var latestLocation by remember { mutableStateOf(location) }
     var isTrackingUserLocation by remember { mutableStateOf(followUser) }
     var didCenterOnFirstGpsFix by remember { mutableStateOf(false) }
 
-    val styleJson = remember(mapStyleProvider) { mapStyleProvider.getStyleJson() }
     latestLocation = location
 
     val mapView = remember {
@@ -104,7 +127,7 @@ fun NavigateScreen(
             mv.getMapAsync { map ->
                 if (!didLoadStyle) {
                     didLoadStyle = true
-                    map.setStyle(Style.Builder().fromJson(styleJson)) {
+                    map.setStyle(Style.Builder().fromJson(resolvedStyleJson)) {
                         ensureTerrainHazardLayers(it)
                         map.uiSettings.isAttributionEnabled = false
                         map.uiSettings.isLogoEnabled = false
@@ -157,6 +180,14 @@ fun NavigateScreen(
                                 isTrackingUserLocation = isTrackingUserLocation
                             )
                         )
+                    }
+                }
+
+                if (!didAttachMapTapListener) {
+                    didAttachMapTapListener = true
+                    map.addOnMapClickListener { latLng ->
+                        onMapTap(latLng.latitude, latLng.longitude)
+                        true
                     }
                 }
 

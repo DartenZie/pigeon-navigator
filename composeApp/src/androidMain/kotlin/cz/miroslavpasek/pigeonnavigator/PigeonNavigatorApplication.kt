@@ -14,9 +14,14 @@ import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarning
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class PigeonNavigatorApplication : Application() {
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onCreate() {
         super.onCreate()
 
@@ -34,7 +39,7 @@ class PigeonNavigatorApplication : Application() {
             )
         }
 
-        runBlocking {
+        appScope.launch {
             GlobalContext.get().get<AviationPackageBootstrapper>().ensureInstalledFromAsset()
         }
     }

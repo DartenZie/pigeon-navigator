@@ -14,3 +14,11 @@ class SearchStoreHelper {
         return KoinHelper().getSearchStoreHandle()
     }
 }
+
+/// Resolves shared map tap lookup handles for Swift-side consumers.
+class MapTapLookupHelper {
+    /// Creates a new `MapTapLookupHandle` from the shared dependency graph.
+    static func resolve() -> MapTapLookupHandle {
+        return KoinHelper().getMapTapLookupHandle()
+    }
+}

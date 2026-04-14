@@ -2,6 +2,8 @@ package cz.miroslavpasek.pigeonnavigator.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupCoordinator
+import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
@@ -20,12 +22,14 @@ data class HomeUIState(
     val requiresPermission: Boolean = false,
     val terrainWarningLevel: TerrainWarningLevel = TerrainWarningLevel.None,
     val terrainDistanceToImpactMeters: Double? = null,
-    val terrainHazardSamples: List<TerrainHazardSample> = emptyList()
+    val terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
+    val mapTapLookup: MapTapLookupState = MapTapLookupState()
 )
 
 class HomeViewModel(
     private val locationService: LocationService,
-    private val terrainWarningStore: TerrainWarningStore
+    private val terrainWarningStore: TerrainWarningStore,
+    private val mapTapLookupCoordinator: MapTapLookupCoordinator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUIState())
@@ -36,7 +40,12 @@ class HomeViewModel(
 
     init {
         observeTerrainWarnings()
+        observeMapTapLookup()
         startLocationUpdates()
+    }
+
+    fun onMapTapped(latitude: Double, longitude: Double) {
+        mapTapLookupCoordinator.queryAt(latitude = latitude, longitude = longitude)
     }
 
     fun refreshLocation() {
@@ -89,10 +98,21 @@ class HomeViewModel(
         }
     }
 
+    private fun observeMapTapLookup() {
+        viewModelScope.launch {
+            mapTapLookupCoordinator.state.collect { lookupState ->
+                _uiState.update {
+                    it.copy(mapTapLookup = lookupState)
+                }
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         locationJob?.cancel()
         terrainStateJob?.cancel()
+        mapTapLookupCoordinator.close()
         terrainWarningStore.close()
     }
 }
