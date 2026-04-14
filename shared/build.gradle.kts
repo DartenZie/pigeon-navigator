@@ -30,8 +30,11 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.koin.core)
+            implementation(projects.core.util)
             implementation(projects.core.platform)
+            implementation(projects.domain)
             implementation(projects.data.searchData)
+            implementation(projects.data.aviationData)
             implementation(projects.feature.searchFeature)
         }
         androidMain.dependencies {

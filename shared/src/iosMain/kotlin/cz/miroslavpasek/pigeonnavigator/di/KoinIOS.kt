@@ -1,6 +1,8 @@
 package cz.miroslavpasek.pigeonnavigator.di
 
 import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvider
+import cz.miroslavpasek.pigeonnavigator.data.aviation.AviationPackageBootstrapper
+import cz.miroslavpasek.pigeonnavigator.data.aviation.di.aviationDataModule
 import cz.miroslavpasek.pigeonnavigator.data.search.di.searchDataModule
 import cz.miroslavpasek.pigeonnavigator.feature.search.api.SearchStore
 import cz.miroslavpasek.pigeonnavigator.feature.search.di.searchFeatureModule
@@ -14,6 +16,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import org.koin.dsl.module
@@ -36,9 +39,14 @@ fun initKoin() {
         modules(
             sharedModule,
             iosDispatcherModule,
+            aviationDataModule(),
             searchDataModule(),
             searchFeatureModule()
         )
+    }
+
+    runBlocking {
+        KoinPlatform.getKoin().get<AviationPackageBootstrapper>().ensureInstalledFromAsset()
     }
 }
 

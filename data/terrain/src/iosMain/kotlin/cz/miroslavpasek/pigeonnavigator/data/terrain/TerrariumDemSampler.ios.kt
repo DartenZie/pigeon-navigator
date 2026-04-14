@@ -3,6 +3,7 @@ package cz.miroslavpasek.pigeonnavigator.data.terrain
 import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.data.terrain.internal.PmtilesDirectory
 import cz.miroslavpasek.pigeonnavigator.data.terrain.internal.TerrainMath
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.GetActiveMapPackageUseCase
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
@@ -27,7 +28,6 @@ import platform.CoreGraphics.kCGBitmapByteOrder32Big
 import platform.CoreFoundation.CFDataCreate
 import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.kCFAllocatorDefault
-import platform.Foundation.NSBundle
 import platform.Foundation.NSFileManager
 import platform.ImageIO.CGImageSourceCreateImageAtIndex
 import platform.ImageIO.CGImageSourceCreateWithData
@@ -41,17 +41,19 @@ import platform.zlib.inflate
 import platform.zlib.inflateEnd
 import platform.zlib.inflateInit2
 import platform.zlib.z_stream_s
+import org.koin.mp.KoinPlatform
 
 /**
- * Creates the iOS Terrarium DEM sampler backed by bundled PMTiles assets.
+ * Creates the iOS Terrarium DEM sampler backed by active OFPKG terrain PMTiles.
  */
 actual fun createTerrariumDemSampler(): TerrariumDemSampler = IosTerrariumDemSampler()
 
 @OptIn(ExperimentalForeignApi::class)
 /**
- * Samples terrain elevation by decoding Terrarium tiles from the bundled `terrain.pmtiles` archive.
+ * Samples terrain elevation by decoding Terrarium tiles from active package terrain PMTiles.
  */
 private class IosTerrariumDemSampler : TerrariumDemSampler {
+    private val getActiveMapPackageUseCase: GetActiveMapPackageUseCase = KoinPlatform.getKoin().get()
     private var parsedArchive: ParsedPmtilesArchive? = null
 
     private val decodedTileCache = mutableMapOf<String, ByteArray>()
@@ -98,7 +100,7 @@ private class IosTerrariumDemSampler : TerrariumDemSampler {
         return AppResult.Success(TerrainMath.decodeTerrariumMeters(red = red, green = green, blue = blue))
     }
 
-    private fun getOrParseArchive(): ParsedPmtilesArchive? {
+    private suspend fun getOrParseArchive(): ParsedPmtilesArchive? {
         parsedArchive?.let { return it }
 
         val bytes = readTerrainArchiveBytes() ?: return null
@@ -139,12 +141,16 @@ private class IosTerrariumDemSampler : TerrariumDemSampler {
         )
     }
 
-    private fun readTerrainArchiveBytes(): ByteArray? {
-        val resourcePath = NSBundle.mainBundle.resourcePath ?: return null
-        val filePath = listOf(
-            "$resourcePath/MapAssets/$TERRAIN_ASSET_PATH",
-            "$resourcePath/$TERRAIN_ASSET_PATH"
-        ).firstOrNull { NSFileManager.defaultManager.fileExistsAtPath(it) } ?: return null
+    private suspend fun readTerrainArchiveBytes(): ByteArray? {
+        val activePackage = when (val result = getActiveMapPackageUseCase()) {
+            is AppResult.Success -> result.value
+            is AppResult.Failure -> return null
+        }
+
+        val filePath = activePackage.terrainPmtilesAbsolutePath
+        if (!NSFileManager.defaultManager.fileExistsAtPath(filePath)) {
+            return null
+        }
 
         val data = NSFileManager.defaultManager.contentsAtPath(filePath) ?: return null
         val size = data.length.toInt()
@@ -310,7 +316,6 @@ private class IosTerrariumDemSampler : TerrariumDemSampler {
     }
 
     private companion object {
-        const val TERRAIN_ASSET_PATH = "terrain.pmtiles"
         const val PMTILES_HEADER_SIZE = 127
         const val TILE_SIZE = 256
         const val RGBA_STRIDE = 4

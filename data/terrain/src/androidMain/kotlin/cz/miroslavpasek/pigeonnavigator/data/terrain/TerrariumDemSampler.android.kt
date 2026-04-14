@@ -1,27 +1,28 @@
 package cz.miroslavpasek.pigeonnavigator.data.terrain
 
-import android.content.Context
 import android.graphics.BitmapFactory
 import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.GetActiveMapPackageUseCase
 import cz.miroslavpasek.pigeonnavigator.data.terrain.internal.PmtilesDirectory
 import cz.miroslavpasek.pigeonnavigator.data.terrain.internal.TerrainMath
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
+import java.io.File
 import java.util.LinkedHashMap
 import java.util.zip.GZIPInputStream
 import org.koin.mp.KoinPlatform
 
 /**
- * Creates the Android Terrarium DEM sampler backed by bundled PMTiles assets.
+ * Creates the Android Terrarium DEM sampler backed by active OFPKG terrain PMTiles.
  */
 actual fun createTerrariumDemSampler(): TerrariumDemSampler = AndroidTerrariumDemSampler()
 
 /**
- * Samples terrain elevation by reading Terrarium tiles from the bundled `terrain.pmtiles` archive.
+ * Samples terrain elevation by reading Terrarium tiles from active package terrain PMTiles.
  */
 private class AndroidTerrariumDemSampler : TerrariumDemSampler {
-    private val context: Context = KoinPlatform.getKoin().get()
+    private val getActiveMapPackageUseCase: GetActiveMapPackageUseCase = KoinPlatform.getKoin().get()
 
     @Volatile
     private var parsedArchive: ParsedPmtilesArchive? = null
@@ -74,18 +75,23 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
         )
     }
 
-    private fun getOrParseArchive(): ParsedPmtilesArchive? {
+    private suspend fun getOrParseArchive(): ParsedPmtilesArchive? {
         parsedArchive?.let { return it }
 
-        synchronized(this) {
-            parsedArchive?.let { return it }
-            val archiveBytes = runCatching {
-                context.assets.open(TERRAIN_ASSET_PATH).use { it.readBytes() }
-            }.getOrNull() ?: return null
+        val activePackage = when (val result = getActiveMapPackageUseCase()) {
+            is AppResult.Success -> result.value
+            is AppResult.Failure -> return null
+        }
 
+        val archiveBytes = runCatching {
+            File(activePackage.terrainPmtilesAbsolutePath).readBytes()
+        }.getOrNull() ?: return null
+
+        return synchronized(this) {
+            parsedArchive?.let { return it }
             val parsed = parseArchive(archiveBytes) ?: return null
             parsedArchive = parsed
-            return parsed
+            parsed
         }
     }
 
@@ -153,7 +159,6 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
     }
 
     private companion object {
-        const val TERRAIN_ASSET_PATH = "terrain.pmtiles"
         const val PMTILES_HEADER_SIZE = 127
         const val MAGIC_AND_VERSION_SIZE = 8
         const val TILE_SIZE = 256
