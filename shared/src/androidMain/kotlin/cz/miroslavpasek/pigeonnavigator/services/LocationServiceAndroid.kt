@@ -54,6 +54,7 @@ class LocationServiceAndroid(
                         altitudeMeters = 0.0,
                         speedMetersPerSecond = 0f,
                         bearingDegrees = 0f,
+                        horizontalAccuracyMeters = null,
                         requiresPermission = true,
                     )
                 )
@@ -83,6 +84,8 @@ class LocationServiceAndroid(
                                     altitudeMeters = location.altitude,
                                     speedMetersPerSecond = location.speed,
                                     bearingDegrees = location.bearing,
+                                    horizontalAccuracyMeters =
+                                        if (location.hasAccuracy()) location.accuracy.toDouble() else null,
                                     requiresPermission = false,
                                 )
                             )

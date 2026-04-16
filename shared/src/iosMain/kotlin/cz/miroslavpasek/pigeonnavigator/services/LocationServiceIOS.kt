@@ -39,6 +39,7 @@ class LocationServiceIOS : LocationService {
                     altitudeMeters = 0.0,
                     speedMetersPerSecond = 0f,
                     bearingDegrees = 0f,
+                    horizontalAccuracyMeters = null,
                     requiresPermission = true
                 )
             )
@@ -81,6 +82,7 @@ class LocationServiceIOS : LocationService {
 
                 val speed = last.speed.takeIf { it >= 0.0 }?.toFloat() ?: 0f
                 val bearing = last.course.takeIf { it >= 0.0 }?.toFloat() ?: 0f
+                val horizontalAccuracy = last.horizontalAccuracy.takeIf { it >= 0.0 }
 
                 trySend(
                     FlightLocation(
@@ -89,6 +91,7 @@ class LocationServiceIOS : LocationService {
                         altitudeMeters = last.altitude,
                         speedMetersPerSecond = speed,
                         bearingDegrees = bearing,
+                        horizontalAccuracyMeters = horizontalAccuracy,
                         requiresPermission = false
                     )
                 )

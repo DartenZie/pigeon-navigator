@@ -27,9 +27,13 @@ import org.maplibre.android.style.expressions.Expression.eq
 import org.maplibre.android.style.expressions.Expression.get
 import org.maplibre.android.style.expressions.Expression.literal
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.fillColor
+import org.maplibre.android.style.layers.PropertyFactory.fillOpacity
+import org.maplibre.android.style.layers.PropertyFactory.fillOutlineColor
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
@@ -40,6 +44,7 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.geojson.Point
+import org.maplibre.geojson.Polygon
 
 private const val DEFAULT_ZOOM = 10.5
 private const val RECENTER_DISTANCE_METERS = 12f
@@ -52,6 +57,14 @@ private const val TERRAIN_RED_LAYER_ID = "terrain-hazard-conflict-layer"
 private const val TERRAIN_SEVERITY_KEY = "severity"
 private const val TERRAIN_SEVERITY_NEAR = "near"
 private const val TERRAIN_SEVERITY_CONFLICT = "conflict"
+private const val USER_LOCATION_DOT_SOURCE_ID = "user-location-dot-source"
+private const val USER_LOCATION_DOT_LAYER_ID = "user-location-dot-layer"
+private const val USER_LOCATION_ACCURACY_SOURCE_ID = "user-location-accuracy-source"
+private const val USER_LOCATION_ACCURACY_LAYER_ID = "user-location-accuracy-layer"
+private const val USER_LOCATION_DOT_COLOR = "#1E88E5"
+private const val USER_LOCATION_DOT_STROKE_COLOR = "#FFFFFF"
+private const val USER_LOCATION_ACCURACY_FILL_COLOR = "#42A5F5"
+private const val EARTH_RADIUS_METERS = 6_371_000.0
 private val PRAGUE = LatLng(50.0755, 14.4378)
 
 @Composable
@@ -129,6 +142,8 @@ fun NavigateScreen(
                     didLoadStyle = true
                     map.setStyle(Style.Builder().fromJson(resolvedStyleJson)) {
                         ensureTerrainHazardLayers(it)
+                        ensureUserLocationLayers(it)
+                        updateUserLocationLayers(it, latestLocation)
                         map.uiSettings.isAttributionEnabled = false
                         map.uiSettings.isLogoEnabled = false
                         map.uiSettings.isCompassEnabled = false
@@ -160,8 +175,10 @@ fun NavigateScreen(
 
                 map.style?.let { style ->
                     ensureTerrainHazardLayers(style)
+                    ensureUserLocationLayers(style)
                     style.getSourceAs<GeoJsonSource>(TERRAIN_SOURCE_ID)
                         ?.setGeoJson(buildTerrainHazardFeatureCollection(terrainHazardSamples))
+                    updateUserLocationLayers(style, location)
                 }
 
                 if (!didAttachCameraListener) {
@@ -285,6 +302,108 @@ fun NavigateScreen(
             }
         }
     )
+}
+
+private fun ensureUserLocationLayers(style: Style) {
+    if (style.getSourceAs<GeoJsonSource>(USER_LOCATION_ACCURACY_SOURCE_ID) == null) {
+        style.addSource(
+            GeoJsonSource(USER_LOCATION_ACCURACY_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf()))
+        )
+    }
+
+    if (style.getLayer(USER_LOCATION_ACCURACY_LAYER_ID) == null) {
+        style.addLayer(
+            FillLayer(USER_LOCATION_ACCURACY_LAYER_ID, USER_LOCATION_ACCURACY_SOURCE_ID)
+                .withProperties(
+                    fillColor(USER_LOCATION_ACCURACY_FILL_COLOR),
+                    fillOpacity(0.2f),
+                    fillOutlineColor(USER_LOCATION_ACCURACY_FILL_COLOR)
+                )
+        )
+    }
+
+    if (style.getSourceAs<GeoJsonSource>(USER_LOCATION_DOT_SOURCE_ID) == null) {
+        style.addSource(
+            GeoJsonSource(USER_LOCATION_DOT_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf()))
+        )
+    }
+
+    if (style.getLayer(USER_LOCATION_DOT_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(USER_LOCATION_DOT_LAYER_ID, USER_LOCATION_DOT_SOURCE_ID)
+                .withProperties(
+                    circleColor(USER_LOCATION_DOT_COLOR),
+                    circleRadius(7f),
+                    circleOpacity(1f),
+                    org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth(2f),
+                    org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor(USER_LOCATION_DOT_STROKE_COLOR)
+                )
+        )
+    }
+}
+
+private fun updateUserLocationLayers(style: Style, location: FlightLocation?) {
+    style.getSourceAs<GeoJsonSource>(USER_LOCATION_DOT_SOURCE_ID)
+        ?.setGeoJson(buildUserLocationDotFeatureCollection(location))
+    style.getSourceAs<GeoJsonSource>(USER_LOCATION_ACCURACY_SOURCE_ID)
+        ?.setGeoJson(buildUserLocationAccuracyFeatureCollection(location))
+}
+
+private fun buildUserLocationDotFeatureCollection(location: FlightLocation?): FeatureCollection {
+    if (location == null || location.requiresPermission) {
+        return FeatureCollection.fromFeatures(arrayOf())
+    }
+
+    return FeatureCollection.fromFeatures(
+        arrayOf(
+            Feature.fromGeometry(Point.fromLngLat(location.longitude, location.latitude))
+        )
+    )
+}
+
+private fun buildUserLocationAccuracyFeatureCollection(location: FlightLocation?): FeatureCollection {
+    if (location == null || location.requiresPermission) {
+        return FeatureCollection.fromFeatures(arrayOf())
+    }
+
+    val radiusMeters = location.horizontalAccuracyMeters
+        ?.takeIf { it.isFinite() && it > 0.0 }
+        ?: return FeatureCollection.fromFeatures(arrayOf())
+
+    val polygon = Polygon.fromLngLats(
+        listOf(buildCircleRingPoints(location.latitude, location.longitude, radiusMeters))
+    )
+
+    return FeatureCollection.fromFeatures(arrayOf(Feature.fromGeometry(polygon)))
+}
+
+private fun buildCircleRingPoints(
+    latitude: Double,
+    longitude: Double,
+    radiusMeters: Double,
+    segments: Int = 64
+): List<Point> {
+    val latRadians = Math.toRadians(latitude)
+    val lonRadians = Math.toRadians(longitude)
+    val angularDistance = radiusMeters / EARTH_RADIUS_METERS
+
+    return (0..segments).map { step ->
+        val bearing = 2.0 * Math.PI * step.toDouble() / segments.toDouble()
+        val sinLat = kotlin.math.sin(latRadians)
+        val cosLat = kotlin.math.cos(latRadians)
+        val sinAngularDistance = kotlin.math.sin(angularDistance)
+        val cosAngularDistance = kotlin.math.cos(angularDistance)
+
+        val lat2 = kotlin.math.asin(
+            sinLat * cosAngularDistance + cosLat * sinAngularDistance * kotlin.math.cos(bearing)
+        )
+        val lon2 = lonRadians + kotlin.math.atan2(
+            kotlin.math.sin(bearing) * sinAngularDistance * cosLat,
+            cosAngularDistance - sinLat * kotlin.math.sin(lat2)
+        )
+
+        Point.fromLngLat(Math.toDegrees(lon2), Math.toDegrees(lat2))
+    }
 }
 
 private fun ensureTerrainHazardLayers(style: Style) {

@@ -8,6 +8,7 @@ package cz.miroslavpasek.pigeonnavigator.data
  * @property altitudeMeters Altitude above mean sea level in meters.
  * @property speedMetersPerSecond Groundspeed in meters per second.
  * @property bearingDegrees Course angle in degrees.
+ * @property horizontalAccuracyMeters Estimated horizontal accuracy radius in meters.
  * @property requiresPermission True when location data cannot be provided until permission is granted.
  */
 data class FlightLocation(
@@ -16,5 +17,6 @@ data class FlightLocation(
     val altitudeMeters: Double,
     val speedMetersPerSecond: Float,
     val bearingDegrees: Float,
+    val horizontalAccuracyMeters: Double? = null,
     val requiresPermission: Boolean = false
 )

@@ -13,6 +13,7 @@ import Shared
 
 struct NavigateView: UIViewRepresentable {
     let location: CLLocationCoordinate2D?
+    var locationAccuracyMeters: Double? = nil
     var terrainHazardPoints: [TerrainHazardOverlayPoint] = []
     var followUser: Bool = true
     var zoomLevel = 10.5
@@ -23,6 +24,10 @@ struct NavigateView: UIViewRepresentable {
     var recenterOnUserToken: Int = 0
     private let recenterDistanceMeters: CLLocationDistance = 12
     private let awayFromUserDistanceMeters: CLLocationDistance = 24
+    private let userLocationDotSourceId = "user-location-dot-source"
+    private let userLocationDotLayerId = "user-location-dot-layer"
+    private let userLocationAccuracySourceId = "user-location-accuracy-source"
+    private let userLocationAccuracyLayerId = "user-location-accuracy-layer"
     
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -133,6 +138,15 @@ struct NavigateView: UIViewRepresentable {
             mapView,
             points: terrainHazardPoints
         )
+        context.coordinator.renderUserLocationIndicator(
+            mapView,
+            location: location,
+            horizontalAccuracyMeters: locationAccuracyMeters,
+            dotSourceId: userLocationDotSourceId,
+            dotLayerId: userLocationDotLayerId,
+            accuracySourceId: userLocationAccuracySourceId,
+            accuracyLayerId: userLocationAccuracyLayerId
+        )
 
         if context.coordinator.lastResetNorthToken != resetNorthToken {
             context.coordinator.lastResetNorthToken = resetNorthToken
@@ -148,7 +162,10 @@ struct NavigateView: UIViewRepresentable {
             }
         }
         
-        guard followUser, let loc = location else { return }
+        guard followUser, let loc = location else {
+            context.coordinator.evaluateAwayFromUserLocation(mapView)
+            return
+        }
         
         guard mapView.style != nil else { return }
 
@@ -278,6 +295,115 @@ struct NavigateView: UIViewRepresentable {
         func renderTerrainHazardsTemplate(_ mapView: MLNMapView, points: [TerrainHazardOverlayPoint]) {
             _ = mapView
             _ = points
+        }
+
+        func renderUserLocationIndicator(
+            _ mapView: MLNMapView,
+            location: CLLocationCoordinate2D?,
+            horizontalAccuracyMeters: Double?,
+            dotSourceId: String,
+            dotLayerId: String,
+            accuracySourceId: String,
+            accuracyLayerId: String
+        ) {
+            guard let style = mapView.style else { return }
+
+            let dotSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: dotSourceId) as? MLNShapeSource {
+                dotSource = existing
+            } else {
+                dotSource = MLNShapeSource(identifier: dotSourceId, shape: nil, options: nil)
+                style.addSource(dotSource)
+            }
+
+            if style.layer(withIdentifier: dotLayerId) == nil {
+                let layer = MLNCircleStyleLayer(identifier: dotLayerId, source: dotSource)
+                layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.12, green: 0.53, blue: 0.90, alpha: 1.0))
+                layer.circleRadius = NSExpression(forConstantValue: 7)
+                layer.circleOpacity = NSExpression(forConstantValue: 1.0)
+                layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                layer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+                style.addLayer(layer)
+            }
+
+            if let location {
+                let point = MLNPointFeature()
+                point.coordinate = location
+                dotSource.shape = point
+            } else {
+                dotSource.shape = nil
+            }
+
+            let accuracySource: MLNShapeSource
+            if let existing = style.source(withIdentifier: accuracySourceId) as? MLNShapeSource {
+                accuracySource = existing
+            } else {
+                accuracySource = MLNShapeSource(identifier: accuracySourceId, shape: nil, options: nil)
+                style.addSource(accuracySource)
+            }
+
+            if style.layer(withIdentifier: accuracyLayerId) == nil {
+                let layer = MLNFillStyleLayer(identifier: accuracyLayerId, source: accuracySource)
+                let color = UIColor(red: 0.26, green: 0.65, blue: 0.96, alpha: 1.0)
+                layer.fillColor = NSExpression(forConstantValue: color)
+                layer.fillOpacity = NSExpression(forConstantValue: 0.2)
+                layer.fillOutlineColor = NSExpression(forConstantValue: color)
+                style.addLayer(layer)
+            }
+
+            if let location,
+               let horizontalAccuracyMeters,
+               horizontalAccuracyMeters > 0 {
+                accuracySource.shape = buildAccuracyPolygon(
+                    center: location,
+                    radiusMeters: horizontalAccuracyMeters
+                )
+            } else {
+                accuracySource.shape = nil
+            }
+        }
+
+        private func buildAccuracyPolygon(
+            center: CLLocationCoordinate2D,
+            radiusMeters: Double,
+            segments: Int = 64
+        ) -> MLNPolygonFeature {
+            let earthRadiusMeters = 6_371_000.0
+            let angularDistance = radiusMeters / earthRadiusMeters
+            let lat1 = center.latitude * .pi / 180
+            let lon1 = center.longitude * .pi / 180
+
+            var ring = [CLLocationCoordinate2D]()
+            ring.reserveCapacity(segments + 1)
+
+            for step in 0...segments {
+                let bearing = 2 * Double.pi * Double(step) / Double(segments)
+                let sinLat1 = sin(lat1)
+                let cosLat1 = cos(lat1)
+                let sinAd = sin(angularDistance)
+                let cosAd = cos(angularDistance)
+
+                let lat2 = asin(sinLat1 * cosAd + cosLat1 * sinAd * cos(bearing))
+                let lon2 = lon1 + atan2(
+                    sin(bearing) * sinAd * cosLat1,
+                    cosAd - sinLat1 * sin(lat2)
+                )
+
+                ring.append(
+                    CLLocationCoordinate2D(
+                        latitude: lat2 * 180 / .pi,
+                        longitude: lon2 * 180 / .pi
+                    )
+                )
+            }
+
+            return ring.withUnsafeMutableBufferPointer { buffer in
+                MLNPolygonFeature(
+                    coordinates: buffer.baseAddress!,
+                    count: UInt(buffer.count),
+                    interiorPolygons: nil
+                )
+            }
         }
     }
 }

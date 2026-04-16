@@ -4,6 +4,7 @@ import Shared
 
 struct ContentView: View {
     @State private var coordinate: CLLocationCoordinate2D? = nil
+    @State private var locationAccuracyMeters: Double? = nil
     @State private var mapDirection: CLLocationDirection = 0
     @State private var resetNorthToken: Int = 0
     @State private var recenterOnUserToken: Int = 0
@@ -23,6 +24,7 @@ struct ContentView: View {
             ZStack(alignment: .bottom) {
                 NavigateView(
                     location: coordinate,
+                    locationAccuracyMeters: locationAccuracyMeters,
                     terrainHazardPoints: [],
                     followUser: true,
                     onDirectionChange: { direction in
@@ -52,6 +54,7 @@ struct ContentView: View {
                                 latitude: loc.latitude,
                                 longitude: loc.longitude
                             )
+                            locationAccuracyMeters = loc.horizontalAccuracyMeters?.doubleValue
                         }
                     }
 
