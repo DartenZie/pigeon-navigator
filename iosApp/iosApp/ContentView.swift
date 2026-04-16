@@ -5,6 +5,8 @@ import Shared
 struct ContentView: View {
     @State private var coordinate: CLLocationCoordinate2D? = nil
     @State private var locationAccuracyMeters: Double? = nil
+    @State private var locationSpeedMetersPerSecond: Double = 0
+    @State private var locationBearingDegrees: Double? = nil
     @State private var mapDirection: CLLocationDirection = 0
     @State private var resetNorthToken: Int = 0
     @State private var recenterOnUserToken: Int = 0
@@ -25,6 +27,8 @@ struct ContentView: View {
                 NavigateView(
                     location: coordinate,
                     locationAccuracyMeters: locationAccuracyMeters,
+                    locationSpeedMetersPerSecond: locationSpeedMetersPerSecond,
+                    locationBearingDegrees: locationBearingDegrees,
                     terrainHazardPoints: [],
                     followUser: true,
                     onDirectionChange: { direction in
@@ -55,6 +59,8 @@ struct ContentView: View {
                                 longitude: loc.longitude
                             )
                             locationAccuracyMeters = loc.horizontalAccuracyMeters?.doubleValue
+                            locationSpeedMetersPerSecond = loc.speedMetersPerSecond.doubleValue
+                            locationBearingDegrees = loc.bearingDegrees.doubleValue
                         }
                     }
 

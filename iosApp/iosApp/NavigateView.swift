@@ -14,6 +14,8 @@ import Shared
 struct NavigateView: UIViewRepresentable {
     let location: CLLocationCoordinate2D?
     var locationAccuracyMeters: Double? = nil
+    var locationSpeedMetersPerSecond: Double = 0
+    var locationBearingDegrees: Double? = nil
     var terrainHazardPoints: [TerrainHazardOverlayPoint] = []
     var followUser: Bool = true
     var zoomLevel = 10.5
@@ -28,6 +30,16 @@ struct NavigateView: UIViewRepresentable {
     private let userLocationDotLayerId = "user-location-dot-layer"
     private let userLocationAccuracySourceId = "user-location-accuracy-source"
     private let userLocationAccuracyLayerId = "user-location-accuracy-layer"
+    private let userGuidanceLineSourceId = "user-guidance-line-source"
+    private let userGuidanceTrackLayerId = "user-guidance-track-layer"
+    private let userGuidanceConeLayerId = "user-guidance-cone-layer"
+    private let userGuidanceMinuteMarkSourceId = "user-guidance-minute-mark-source"
+    private let userGuidanceMinuteMarkLayerId = "user-guidance-minute-mark-layer"
+    private let userGuidanceLookAheadMeters = 20_000.0
+    private let userGuidanceConeHalfAngleDegrees = 25.0
+    private let userGuidanceMaxMinuteMarks = 12
+    private let userGuidanceTickMarkLengthMeters = 180.0
+    private let userGuidanceMinSpeedMetersPerSecond = 0.8
     
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -146,6 +158,22 @@ struct NavigateView: UIViewRepresentable {
             dotLayerId: userLocationDotLayerId,
             accuracySourceId: userLocationAccuracySourceId,
             accuracyLayerId: userLocationAccuracyLayerId
+        )
+        context.coordinator.renderGuidanceOverlay(
+            mapView,
+            location: location,
+            speedMetersPerSecond: locationSpeedMetersPerSecond,
+            bearingDegrees: locationBearingDegrees,
+            lineSourceId: userGuidanceLineSourceId,
+            trackLayerId: userGuidanceTrackLayerId,
+            coneLayerId: userGuidanceConeLayerId,
+            minuteMarkSourceId: userGuidanceMinuteMarkSourceId,
+            minuteMarkLayerId: userGuidanceMinuteMarkLayerId,
+            lookAheadMeters: userGuidanceLookAheadMeters,
+            coneHalfAngleDegrees: userGuidanceConeHalfAngleDegrees,
+            maxMinuteMarks: userGuidanceMaxMinuteMarks,
+            tickMarkLengthMeters: userGuidanceTickMarkLengthMeters,
+            minSpeedMetersPerSecond: userGuidanceMinSpeedMetersPerSecond
         )
 
         if context.coordinator.lastResetNorthToken != resetNorthToken {
@@ -404,6 +432,184 @@ struct NavigateView: UIViewRepresentable {
                     interiorPolygons: nil
                 )
             }
+        }
+
+        func renderGuidanceOverlay(
+            _ mapView: MLNMapView,
+            location: CLLocationCoordinate2D?,
+            speedMetersPerSecond: Double,
+            bearingDegrees: Double?,
+            lineSourceId: String,
+            trackLayerId: String,
+            coneLayerId: String,
+            minuteMarkSourceId: String,
+            minuteMarkLayerId: String,
+            lookAheadMeters: Double,
+            coneHalfAngleDegrees: Double,
+            maxMinuteMarks: Int,
+            tickMarkLengthMeters: Double,
+            minSpeedMetersPerSecond: Double
+        ) {
+            guard let style = mapView.style else { return }
+
+            let lineSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: lineSourceId) as? MLNShapeSource {
+                lineSource = existing
+            } else {
+                lineSource = MLNShapeSource(identifier: lineSourceId, shape: nil, options: nil)
+                style.addSource(lineSource)
+            }
+
+            if style.layer(withIdentifier: coneLayerId) == nil {
+                let layer = MLNLineStyleLayer(identifier: coneLayerId, source: lineSource)
+                layer.predicate = NSPredicate(format: "kind == %@", "cone")
+                layer.lineColor = NSExpression(forConstantValue: UIColor.black)
+                layer.lineWidth = NSExpression(forConstantValue: 1)
+                layer.lineOpacity = NSExpression(forConstantValue: 0.5)
+                style.addLayer(layer)
+            }
+
+            if style.layer(withIdentifier: trackLayerId) == nil {
+                let layer = MLNLineStyleLayer(identifier: trackLayerId, source: lineSource)
+                layer.predicate = NSPredicate(format: "kind == %@", "track")
+                layer.lineColor = NSExpression(forConstantValue: UIColor.black)
+                layer.lineWidth = NSExpression(forConstantValue: 1.5)
+                layer.lineOpacity = NSExpression(forConstantValue: 1.0)
+                style.addLayer(layer)
+            }
+
+            let minuteMarkSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: minuteMarkSourceId) as? MLNShapeSource {
+                minuteMarkSource = existing
+            } else {
+                minuteMarkSource = MLNShapeSource(identifier: minuteMarkSourceId, shape: nil, options: nil)
+                style.addSource(minuteMarkSource)
+            }
+
+            if style.layer(withIdentifier: minuteMarkLayerId) == nil {
+                let layer = MLNLineStyleLayer(identifier: minuteMarkLayerId, source: minuteMarkSource)
+                layer.lineColor = NSExpression(forConstantValue: UIColor.black)
+                layer.lineWidth = NSExpression(forConstantValue: 2)
+                layer.lineOpacity = NSExpression(forConstantValue: 1.0)
+                style.addLayer(layer)
+            }
+
+            guard let location,
+                  let bearingDegrees,
+                  bearingDegrees.isFinite,
+                  speedMetersPerSecond.isFinite,
+                  speedMetersPerSecond >= minSpeedMetersPerSecond,
+                  bearingDegrees >= 0,
+                  bearingDegrees <= 360 else {
+                lineSource.shape = nil
+                minuteMarkSource.shape = nil
+                return
+            }
+
+            let normalizedBearing = normalizeBearingDegrees(bearingDegrees)
+            let trackEnd = destinationCoordinate(
+                from: location,
+                bearingDegrees: normalizedBearing,
+                distanceMeters: lookAheadMeters
+            )
+            let leftConeEnd = destinationCoordinate(
+                from: location,
+                bearingDegrees: normalizeBearingDegrees(normalizedBearing - coneHalfAngleDegrees),
+                distanceMeters: lookAheadMeters
+            )
+            let rightConeEnd = destinationCoordinate(
+                from: location,
+                bearingDegrees: normalizeBearingDegrees(normalizedBearing + coneHalfAngleDegrees),
+                distanceMeters: lookAheadMeters
+            )
+
+            lineSource.shape = MLNShapeCollectionFeature(
+                shapes: [
+                    makeLineFeature(from: location, to: trackEnd, kind: "track"),
+                    makeLineFeature(from: location, to: leftConeEnd, kind: "cone"),
+                    makeLineFeature(from: location, to: rightConeEnd, kind: "cone")
+                ]
+            )
+
+            let oneMinuteDistance = speedMetersPerSecond * 60
+            let maxMarksByDistance = Int(floor(lookAheadMeters / oneMinuteDistance))
+            let minuteMarkCount = min(maxMinuteMarks, maxMarksByDistance)
+            if minuteMarkCount <= 0 {
+                minuteMarkSource.shape = nil
+            } else {
+                let halfTickLengthMeters = tickMarkLengthMeters / 2
+                let marks: [MLNPolylineFeature] = (1...minuteMarkCount).map { minute in
+                    let markCoordinate = destinationCoordinate(
+                        from: location,
+                        bearingDegrees: normalizedBearing,
+                        distanceMeters: Double(minute) * oneMinuteDistance
+                    )
+
+                    let tickLeft = destinationCoordinate(
+                        from: markCoordinate,
+                        bearingDegrees: normalizeBearingDegrees(normalizedBearing - 90),
+                        distanceMeters: halfTickLengthMeters
+                    )
+                    let tickRight = destinationCoordinate(
+                        from: markCoordinate,
+                        bearingDegrees: normalizeBearingDegrees(normalizedBearing + 90),
+                        distanceMeters: halfTickLengthMeters
+                    )
+                    return makeLineFeature(from: tickLeft, to: tickRight, kind: "tick")
+                }
+                minuteMarkSource.shape = MLNShapeCollectionFeature(shapes: marks)
+            }
+        }
+
+        private func makeLineFeature(
+            from start: CLLocationCoordinate2D,
+            to end: CLLocationCoordinate2D,
+            kind: String
+        ) -> MLNPolylineFeature {
+            var coordinates = [start, end]
+            let line = MLNPolylineFeature(coordinates: &coordinates, count: UInt(coordinates.count))
+            line.attributes = ["kind": kind]
+            return line
+        }
+
+        private func destinationCoordinate(
+            from start: CLLocationCoordinate2D,
+            bearingDegrees: Double,
+            distanceMeters: Double
+        ) -> CLLocationCoordinate2D {
+            let earthRadiusMeters = 6_371_000.0
+            let angularDistance = distanceMeters / earthRadiusMeters
+            let bearingRadians = bearingDegrees * .pi / 180
+            let lat1 = start.latitude * .pi / 180
+            let lon1 = start.longitude * .pi / 180
+
+            let sinLat1 = sin(lat1)
+            let cosLat1 = cos(lat1)
+            let sinAd = sin(angularDistance)
+            let cosAd = cos(angularDistance)
+
+            let lat2 = asin(sinLat1 * cosAd + cosLat1 * sinAd * cos(bearingRadians))
+            let lon2 = lon1 + atan2(
+                sin(bearingRadians) * sinAd * cosLat1,
+                cosAd - sinLat1 * sin(lat2)
+            )
+
+            return CLLocationCoordinate2D(
+                latitude: lat2 * 180 / .pi,
+                longitude: normalizeLongitudeDegrees(lon2 * 180 / .pi)
+            )
+        }
+
+        private func normalizeBearingDegrees(_ bearing: Double) -> Double {
+            let normalized = bearing.truncatingRemainder(dividingBy: 360)
+            return normalized >= 0 ? normalized : normalized + 360
+        }
+
+        private func normalizeLongitudeDegrees(_ longitude: Double) -> Double {
+            var normalized = longitude
+            while normalized > 180 { normalized -= 360 }
+            while normalized < -180 { normalized += 360 }
+            return normalized
         }
     }
 }

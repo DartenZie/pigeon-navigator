@@ -28,9 +28,13 @@ import org.maplibre.android.style.expressions.Expression.get
 import org.maplibre.android.style.expressions.Expression.literal
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.lineColor
+import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
+import org.maplibre.android.style.layers.PropertyFactory.lineWidth
 import org.maplibre.android.style.layers.PropertyFactory.fillColor
 import org.maplibre.android.style.layers.PropertyFactory.fillOpacity
 import org.maplibre.android.style.layers.PropertyFactory.fillOutlineColor
@@ -43,6 +47,7 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
 
@@ -64,6 +69,18 @@ private const val USER_LOCATION_ACCURACY_LAYER_ID = "user-location-accuracy-laye
 private const val USER_LOCATION_DOT_COLOR = "#1E88E5"
 private const val USER_LOCATION_DOT_STROKE_COLOR = "#FFFFFF"
 private const val USER_LOCATION_ACCURACY_FILL_COLOR = "#42A5F5"
+private const val USER_GUIDANCE_LINE_SOURCE_ID = "user-guidance-line-source"
+private const val USER_GUIDANCE_LINE_TRACK_LAYER_ID = "user-guidance-line-track-layer"
+private const val USER_GUIDANCE_LINE_CONE_LAYER_ID = "user-guidance-line-cone-layer"
+private const val USER_GUIDANCE_MINUTE_MARK_SOURCE_ID = "user-guidance-minute-mark-source"
+private const val USER_GUIDANCE_MINUTE_MARK_LAYER_ID = "user-guidance-minute-mark-layer"
+private const val USER_GUIDANCE_KIND_KEY = "kind"
+private const val USER_GUIDANCE_KIND_TRACK = "track"
+private const val USER_GUIDANCE_KIND_CONE = "cone"
+private const val USER_GUIDANCE_LOOKAHEAD_METERS = 20_000.0
+private const val USER_GUIDANCE_CONE_HALF_ANGLE_DEGREES = 25.0
+private const val USER_GUIDANCE_MAX_MINUTE_MARKS = 12
+private const val USER_GUIDANCE_TICK_MARK_LENGTH_METERS = 180.0
 private const val EARTH_RADIUS_METERS = 6_371_000.0
 private val PRAGUE = LatLng(50.0755, 14.4378)
 
@@ -143,7 +160,9 @@ fun NavigateScreen(
                     map.setStyle(Style.Builder().fromJson(resolvedStyleJson)) {
                         ensureTerrainHazardLayers(it)
                         ensureUserLocationLayers(it)
+                        ensureUserGuidanceLayers(it)
                         updateUserLocationLayers(it, latestLocation)
+                        updateUserGuidanceLayers(it, latestLocation)
                         map.uiSettings.isAttributionEnabled = false
                         map.uiSettings.isLogoEnabled = false
                         map.uiSettings.isCompassEnabled = false
@@ -176,9 +195,11 @@ fun NavigateScreen(
                 map.style?.let { style ->
                     ensureTerrainHazardLayers(style)
                     ensureUserLocationLayers(style)
+                    ensureUserGuidanceLayers(style)
                     style.getSourceAs<GeoJsonSource>(TERRAIN_SOURCE_ID)
                         ?.setGeoJson(buildTerrainHazardFeatureCollection(terrainHazardSamples))
                     updateUserLocationLayers(style, location)
+                    updateUserGuidanceLayers(style, location)
                 }
 
                 if (!didAttachCameraListener) {
@@ -349,6 +370,206 @@ private fun updateUserLocationLayers(style: Style, location: FlightLocation?) {
         ?.setGeoJson(buildUserLocationAccuracyFeatureCollection(location))
 }
 
+private fun ensureUserGuidanceLayers(style: Style) {
+    if (style.getSourceAs<GeoJsonSource>(USER_GUIDANCE_LINE_SOURCE_ID) == null) {
+        style.addSource(GeoJsonSource(USER_GUIDANCE_LINE_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf())))
+    }
+
+    if (style.getLayer(USER_GUIDANCE_LINE_CONE_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(USER_GUIDANCE_LINE_CONE_LAYER_ID, USER_GUIDANCE_LINE_SOURCE_ID)
+                .withFilter(eq(get(USER_GUIDANCE_KIND_KEY), literal(USER_GUIDANCE_KIND_CONE)))
+                .withProperties(
+                    lineColor("#000000"),
+                    lineWidth(1f),
+                    lineOpacity(0.5f)
+                )
+        )
+    }
+
+    if (style.getLayer(USER_GUIDANCE_LINE_TRACK_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(USER_GUIDANCE_LINE_TRACK_LAYER_ID, USER_GUIDANCE_LINE_SOURCE_ID)
+                .withFilter(eq(get(USER_GUIDANCE_KIND_KEY), literal(USER_GUIDANCE_KIND_TRACK)))
+                .withProperties(
+                    lineColor("#000000"),
+                    lineWidth(1.5f),
+                    lineOpacity(1f)
+                )
+        )
+    }
+
+    if (style.getSourceAs<GeoJsonSource>(USER_GUIDANCE_MINUTE_MARK_SOURCE_ID) == null) {
+        style.addSource(
+            GeoJsonSource(USER_GUIDANCE_MINUTE_MARK_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf()))
+        )
+    }
+
+    if (style.getLayer(USER_GUIDANCE_MINUTE_MARK_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(USER_GUIDANCE_MINUTE_MARK_LAYER_ID, USER_GUIDANCE_MINUTE_MARK_SOURCE_ID)
+                .withProperties(
+                    lineColor("#000000"),
+                    lineWidth(2f),
+                    lineOpacity(1f)
+                )
+        )
+    }
+}
+
+private fun updateUserGuidanceLayers(style: Style, location: FlightLocation?) {
+    style.getSourceAs<GeoJsonSource>(USER_GUIDANCE_LINE_SOURCE_ID)
+        ?.setGeoJson(buildUserGuidanceLineFeatureCollection(location))
+    style.getSourceAs<GeoJsonSource>(USER_GUIDANCE_MINUTE_MARK_SOURCE_ID)
+        ?.setGeoJson(buildUserGuidanceMinuteMarkFeatureCollection(location))
+}
+
+private fun buildUserGuidanceLineFeatureCollection(location: FlightLocation?): FeatureCollection {
+    val guidance = resolveGuidanceGeometry(location)
+        ?: return FeatureCollection.fromFeatures(arrayOf())
+
+    return FeatureCollection.fromFeatures(
+        arrayOf(
+            Feature.fromGeometry(
+                LineString.fromLngLats(listOf(guidance.origin, guidance.trackEndpoint))
+            ).apply {
+                addStringProperty(USER_GUIDANCE_KIND_KEY, USER_GUIDANCE_KIND_TRACK)
+            },
+            Feature.fromGeometry(
+                LineString.fromLngLats(listOf(guidance.origin, guidance.leftConeEndpoint))
+            ).apply {
+                addStringProperty(USER_GUIDANCE_KIND_KEY, USER_GUIDANCE_KIND_CONE)
+            },
+            Feature.fromGeometry(
+                LineString.fromLngLats(listOf(guidance.origin, guidance.rightConeEndpoint))
+            ).apply {
+                addStringProperty(USER_GUIDANCE_KIND_KEY, USER_GUIDANCE_KIND_CONE)
+            }
+        )
+    )
+}
+
+private fun buildUserGuidanceMinuteMarkFeatureCollection(location: FlightLocation?): FeatureCollection {
+    val guidance = resolveGuidanceGeometry(location)
+        ?: return FeatureCollection.fromFeatures(arrayOf())
+
+    val markDistanceMeters = guidance.speedMetersPerSecond * 60.0
+    val maxMarksByDistance = kotlin.math.floor(USER_GUIDANCE_LOOKAHEAD_METERS / markDistanceMeters).toInt()
+    val minuteMarkCount = minOf(USER_GUIDANCE_MAX_MINUTE_MARKS, maxMarksByDistance)
+    if (minuteMarkCount <= 0) {
+        return FeatureCollection.fromFeatures(arrayOf())
+    }
+
+    val features = (1..minuteMarkCount).map { minute ->
+        val markPoint = destinationPoint(
+            latitude = guidance.originLatitude,
+            longitude = guidance.originLongitude,
+            bearingDegrees = guidance.bearingDegrees,
+            distanceMeters = minute * markDistanceMeters
+        )
+
+        val halfTickLengthMeters = USER_GUIDANCE_TICK_MARK_LENGTH_METERS / 2.0
+        val leftTickPoint = destinationPoint(
+            latitude = markPoint.latitude(),
+            longitude = markPoint.longitude(),
+            bearingDegrees = normalizeBearing(guidance.bearingDegrees - 90.0),
+            distanceMeters = halfTickLengthMeters
+        )
+        val rightTickPoint = destinationPoint(
+            latitude = markPoint.latitude(),
+            longitude = markPoint.longitude(),
+            bearingDegrees = normalizeBearing(guidance.bearingDegrees + 90.0),
+            distanceMeters = halfTickLengthMeters
+        )
+
+        Feature.fromGeometry(LineString.fromLngLats(listOf(leftTickPoint, rightTickPoint)))
+    }
+
+    return FeatureCollection.fromFeatures(features)
+}
+
+private data class UserGuidanceGeometry(
+    val origin: Point,
+    val originLatitude: Double,
+    val originLongitude: Double,
+    val bearingDegrees: Double,
+    val speedMetersPerSecond: Double,
+    val trackEndpoint: Point,
+    val leftConeEndpoint: Point,
+    val rightConeEndpoint: Point
+)
+
+private fun resolveGuidanceGeometry(location: FlightLocation?): UserGuidanceGeometry? {
+    if (location == null || location.requiresPermission) {
+        return null
+    }
+
+    val speed = location.speedMetersPerSecond.toDouble()
+    if (!speed.isFinite() || speed < MIN_MOVEMENT_SPEED_MPS) {
+        return null
+    }
+
+    val bearing = location.bearingDegrees.toDouble()
+    if (!bearing.isFinite() || bearing < 0.0 || bearing > 360.0) {
+        return null
+    }
+
+    val origin = Point.fromLngLat(location.longitude, location.latitude)
+    val normalizedBearing = normalizeBearing(bearing)
+    return UserGuidanceGeometry(
+        origin = origin,
+        originLatitude = location.latitude,
+        originLongitude = location.longitude,
+        bearingDegrees = normalizedBearing,
+        speedMetersPerSecond = speed,
+        trackEndpoint = destinationPoint(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            bearingDegrees = normalizedBearing,
+            distanceMeters = USER_GUIDANCE_LOOKAHEAD_METERS
+        ),
+        leftConeEndpoint = destinationPoint(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            bearingDegrees = normalizeBearing(normalizedBearing - USER_GUIDANCE_CONE_HALF_ANGLE_DEGREES),
+            distanceMeters = USER_GUIDANCE_LOOKAHEAD_METERS
+        ),
+        rightConeEndpoint = destinationPoint(
+            latitude = location.latitude,
+            longitude = location.longitude,
+            bearingDegrees = normalizeBearing(normalizedBearing + USER_GUIDANCE_CONE_HALF_ANGLE_DEGREES),
+            distanceMeters = USER_GUIDANCE_LOOKAHEAD_METERS
+        )
+    )
+}
+
+private fun destinationPoint(
+    latitude: Double,
+    longitude: Double,
+    bearingDegrees: Double,
+    distanceMeters: Double
+): Point {
+    val latRadians = Math.toRadians(latitude)
+    val lonRadians = Math.toRadians(longitude)
+    val angularDistance = distanceMeters / EARTH_RADIUS_METERS
+    val bearingRadians = Math.toRadians(bearingDegrees)
+
+    val sinLat = kotlin.math.sin(latRadians)
+    val cosLat = kotlin.math.cos(latRadians)
+    val sinAngularDistance = kotlin.math.sin(angularDistance)
+    val cosAngularDistance = kotlin.math.cos(angularDistance)
+
+    val lat2 = kotlin.math.asin(
+        sinLat * cosAngularDistance + cosLat * sinAngularDistance * kotlin.math.cos(bearingRadians)
+    )
+    val lon2 = lonRadians + kotlin.math.atan2(
+        kotlin.math.sin(bearingRadians) * sinAngularDistance * cosLat,
+        cosAngularDistance - sinLat * kotlin.math.sin(lat2)
+    )
+
+    return Point.fromLngLat(normalizeLongitude(Math.toDegrees(lon2)), Math.toDegrees(lat2))
+}
+
 private fun buildUserLocationDotFeatureCollection(location: FlightLocation?): FeatureCollection {
     if (location == null || location.requiresPermission) {
         return FeatureCollection.fromFeatures(arrayOf())
@@ -493,4 +714,11 @@ private fun resolveTrackingBearing(currentBearing: Double, location: FlightLocat
 private fun angularDistanceDegrees(from: Double, to: Double): Double {
     val diff = kotlin.math.abs(normalizeBearing(to) - normalizeBearing(from))
     return if (diff > 180.0) 360.0 - diff else diff
+}
+
+private fun normalizeLongitude(rawLongitude: Double): Double {
+    var longitude = rawLongitude
+    while (longitude > 180.0) longitude -= 360.0
+    while (longitude < -180.0) longitude += 360.0
+    return longitude
 }
