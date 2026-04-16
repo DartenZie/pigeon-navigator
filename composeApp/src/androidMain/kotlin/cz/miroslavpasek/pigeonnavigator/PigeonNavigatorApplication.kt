@@ -10,6 +10,7 @@ import cz.miroslavpasek.pigeonnavigator.di.dispatcherModule
 import cz.miroslavpasek.pigeonnavigator.di.locationModule
 import cz.miroslavpasek.pigeonnavigator.di.sharedModule
 import cz.miroslavpasek.pigeonnavigator.feature.search.di.searchFeatureModule
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.di.searchDockFeatureModule
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarningFeatureModule
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.GlobalContext
@@ -34,6 +35,7 @@ class PigeonNavigatorApplication : Application() {
                 aviationDataModule(),
                 searchDataModule(),
                 searchFeatureModule(),
+                searchDockFeatureModule(),
                 terrainDataModule(),
                 terrainWarningFeatureModule(),
             )

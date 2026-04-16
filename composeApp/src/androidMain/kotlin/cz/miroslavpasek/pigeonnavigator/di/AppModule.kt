@@ -18,7 +18,8 @@ val appModule = module {
         HomeViewModel(
             locationService = get(),
             terrainWarningStore = get(),
-            mapTapLookupCoordinator = get()
+            mapTapLookupCoordinator = get(),
+            searchDockStore = get()
         )
     }
 }

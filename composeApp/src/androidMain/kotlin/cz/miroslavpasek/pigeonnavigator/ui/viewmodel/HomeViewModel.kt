@@ -8,6 +8,10 @@ import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainWarningLevel
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.api.SearchDockStore
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarningStore
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
 import cz.miroslavpasek.pigeonnavigator.services.LocationService
@@ -23,13 +27,15 @@ data class HomeUIState(
     val terrainWarningLevel: TerrainWarningLevel = TerrainWarningLevel.None,
     val terrainDistanceToImpactMeters: Double? = null,
     val terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
-    val mapTapLookup: MapTapLookupState = MapTapLookupState()
+    val mapTapLookup: MapTapLookupState = MapTapLookupState(),
+    val searchDock: SearchDockState = SearchDockState()
 )
 
 class HomeViewModel(
     private val locationService: LocationService,
     private val terrainWarningStore: TerrainWarningStore,
-    private val mapTapLookupCoordinator: MapTapLookupCoordinator
+    private val mapTapLookupCoordinator: MapTapLookupCoordinator,
+    private val searchDockStore: SearchDockStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUIState())
@@ -37,15 +43,41 @@ class HomeViewModel(
 
     private var locationJob: Job? = null
     private var terrainStateJob: Job? = null
+    private var searchDockStateJob: Job? = null
 
     init {
         observeTerrainWarnings()
         observeMapTapLookup()
+        observeSearchDockState()
         startLocationUpdates()
     }
 
     fun onMapTapped(latitude: Double, longitude: Double) {
         mapTapLookupCoordinator.queryAt(latitude = latitude, longitude = longitude)
+    }
+
+    fun onSearchDockExpandedChanged(expanded: Boolean) {
+        searchDockStore.send(SearchDockIntent.ExpandedChanged(expanded = expanded))
+    }
+
+    fun onSearchDockQueryChanged(query: String) {
+        searchDockStore.send(SearchDockIntent.SearchQueryChanged(query = query))
+    }
+
+    fun onSearchDockSubmitSearch() {
+        searchDockStore.send(SearchDockIntent.SubmitSearch)
+    }
+
+    fun onSearchDockClearSearch() {
+        searchDockStore.send(SearchDockIntent.SearchCleared)
+    }
+
+    fun onSearchDockRoutePlanningChanged(planning: Boolean) {
+        searchDockStore.send(SearchDockIntent.RoutePlanningChanged(planning = planning))
+    }
+
+    fun onSearchDockRouteSelected(route: SearchDockRoute) {
+        searchDockStore.send(SearchDockIntent.RouteSelected(route = route))
     }
 
     fun refreshLocation() {
@@ -74,6 +106,13 @@ class HomeViewModel(
                         requiresPermission = loc.requiresPermission
                     )
                 }
+
+                searchDockStore.send(
+                    SearchDockIntent.UserLocationChanged(
+                        latitude = loc.latitude,
+                        longitude = loc.longitude
+                    )
+                )
             }
         }
     }
@@ -101,8 +140,20 @@ class HomeViewModel(
     private fun observeMapTapLookup() {
         viewModelScope.launch {
             mapTapLookupCoordinator.state.collect { lookupState ->
+                val hasSelection = lookupState.selectedLatitude != null && lookupState.selectedLongitude != null
+                searchDockStore.send(SearchDockIntent.MapSelectionChanged(hasSelection = hasSelection))
                 _uiState.update {
                     it.copy(mapTapLookup = lookupState)
+                }
+            }
+        }
+    }
+
+    private fun observeSearchDockState() {
+        searchDockStateJob = viewModelScope.launch {
+            searchDockStore.state.collect { dockState ->
+                _uiState.update {
+                    it.copy(searchDock = dockState)
                 }
             }
         }
@@ -112,7 +163,9 @@ class HomeViewModel(
         super.onCleared()
         locationJob?.cancel()
         terrainStateJob?.cancel()
+        searchDockStateJob?.cancel()
         mapTapLookupCoordinator.close()
+        searchDockStore.close()
         terrainWarningStore.close()
     }
 }

@@ -73,6 +73,7 @@ dependencies {
     implementation(projects.data.terrainData)
     implementation(projects.data.aviationData)
     implementation(projects.feature.searchFeature)
+    implementation(projects.feature.searchDockFeature)
     implementation(projects.feature.terrainWarningFeature)
 
     debugImplementation(libs.compose.uiTooling)

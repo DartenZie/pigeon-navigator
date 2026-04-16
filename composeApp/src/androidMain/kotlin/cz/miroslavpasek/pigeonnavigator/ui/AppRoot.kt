@@ -85,10 +85,17 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                     altitudeMeters = altitudeMeters,
                     mapDirection = mapDirection,
                     isRecenterVisible = isAwayFromUserLocation,
+                    searchDockState = state.searchDock,
                     mapTapLookup = state.mapTapLookup,
                     maxSearchPanelHeight = maxSearchPanelHeight,
                     onCompassTap = { resetNorthToken += 1 },
                     onRecenterTap = { recenterOnUserToken += 1 },
+                    onSearchDockExpandedChanged = vm::onSearchDockExpandedChanged,
+                    onSearchDockQueryChanged = vm::onSearchDockQueryChanged,
+                    onSearchDockSubmitSearch = vm::onSearchDockSubmitSearch,
+                    onSearchDockClearSearch = vm::onSearchDockClearSearch,
+                    onSearchDockRoutePlanningChanged = vm::onSearchDockRoutePlanningChanged,
+                    onSearchDockRouteSelected = vm::onSearchDockRouteSelected,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 16.dp, vertical = 18.dp)
