@@ -35,10 +35,12 @@ struct ContentView: View {
                         mapDirection = direction
                     },
                     onMapTap: { tapCoordinate in
-                        mapTapLookup.queryAt(
-                            latitude: tapCoordinate.latitude,
-                            longitude: tapCoordinate.longitude
-                        )
+                        DispatchQueue.main.async {
+                            mapTapLookup.queryAt(
+                                latitude: tapCoordinate.latitude,
+                                longitude: tapCoordinate.longitude
+                            )
+                        }
                     },
                     onAwayFromUserLocationChange: { isAway in
                         isAwayFromUserLocation = isAway
@@ -59,8 +61,8 @@ struct ContentView: View {
                                 longitude: loc.longitude
                             )
                             locationAccuracyMeters = loc.horizontalAccuracyMeters?.doubleValue
-                            locationSpeedMetersPerSecond = loc.speedMetersPerSecond.doubleValue
-                            locationBearingDegrees = loc.bearingDegrees.doubleValue
+                            locationSpeedMetersPerSecond = Double(loc.speedMetersPerSecond)
+                            locationBearingDegrees = Double(loc.bearingDegrees)
                         }
                     }
 
