@@ -34,7 +34,9 @@ class MapTapLookupCoordinator(
     private val queryNearbyAirportsUseCase: QueryNearbyAirportsUseCase,
     private val queryContainingAirspacesUseCase: QueryContainingAirspacesUseCase,
     private val dispatcherProvider: DispatcherProvider,
-    private val minRefetchDistanceMeters: Double = MIN_REFETCH_DISTANCE_METERS
+    private val minRefetchDistanceMeters: Double = MIN_REFETCH_DISTANCE_METERS,
+    private val airportTapRadiusMeters: Double = AIRPORT_TAP_RADIUS_METERS,
+    private val airportTapLimit: Int = AIRPORT_TAP_LIMIT
 ) {
     private val scope = CoroutineScope(SupervisorJob() + dispatcherProvider.main)
     private val mutableState = MutableStateFlow(MapTapLookupState())
@@ -71,7 +73,12 @@ class MapTapLookupCoordinator(
         }
 
         scope.launch(dispatcherProvider.io) {
-            val airportsResult = queryNearbyAirportsUseCase(latitude = latitude, longitude = longitude)
+            val airportsResult = queryNearbyAirportsUseCase(
+                latitude = latitude,
+                longitude = longitude,
+                radiusMeters = airportTapRadiusMeters,
+                limit = airportTapLimit
+            )
             val airspacesResult = queryContainingAirspacesUseCase(latitude = latitude, longitude = longitude)
 
             mutableState.update { current ->
@@ -119,5 +126,7 @@ class MapTapLookupCoordinator(
     private companion object {
         const val EARTH_RADIUS_METERS = 6_371_000.0
         const val MIN_REFETCH_DISTANCE_METERS = 120.0
+        const val AIRPORT_TAP_RADIUS_METERS = 1000.0
+        const val AIRPORT_TAP_LIMIT = 1
     }
 }
