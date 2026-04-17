@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var coordinate: CLLocationCoordinate2D? = nil
     @State private var locationAccuracyMeters: Double? = nil
     @State private var locationSpeedMetersPerSecond: Double = 0
+    @State private var locationAltitudeMeters: Double = 0
     @State private var locationBearingDegrees: Double? = nil
     @State private var mapDirection: CLLocationDirection = 0
     @State private var resetNorthToken: Int = 0
@@ -19,6 +20,13 @@ struct ContentView: View {
     private let settingsBottomGap: CGFloat = 14
     
     var body: some View {
+        let speedKmh = locationSpeedMetersPerSecond.isFinite
+            ? Int((max(locationSpeedMetersPerSecond, 0) * 3.6).rounded())
+            : 0
+        let altitudeMeters = locationAltitudeMeters.isFinite
+            ? Int(locationAltitudeMeters.rounded())
+            : 0
+
         GeometryReader { proxy in
             let safeInsets = proxy.safeAreaInsets
             let reservedTop = safeInsets.top + settingsTopPadding + settingsButtonSize + settingsBottomGap
@@ -62,13 +70,17 @@ struct ContentView: View {
                             )
                             locationAccuracyMeters = loc.horizontalAccuracyMeters?.doubleValue
                             locationSpeedMetersPerSecond = Double(loc.speedMetersPerSecond)
+                            locationAltitudeMeters = loc.altitudeMeters
                             locationBearingDegrees = Double(loc.bearingDegrees)
                         }
                     }
+                    .onDisappear {
+                        observer.stop()
+                    }
 
                 HUDCluster(
-                    speed: 0,
-                    altitude: 0,
+                    speed: speedKmh,
+                    altitude: altitudeMeters,
                     mapDirection: mapDirection,
                     isRecenterVisible: isAwayFromUserLocation,
                     onCompassTap: {
