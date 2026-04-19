@@ -70,6 +70,8 @@ data class TerrainConflictPrediction(
  * @property warningClearanceMeters Clearance threshold that triggers [TerrainWarningLevel.Warning].
  * @property cautionTimeToImpactSeconds Time-to-impact threshold that triggers [TerrainWarningLevel.Caution].
  * @property warningTimeToImpactSeconds Time-to-impact threshold that triggers [TerrainWarningLevel.Warning].
+ * @property nearConflictVerticalBandMeters Vertical band below aircraft altitude that should be
+ * rendered as near-conflict on the map while terrain is still below the aircraft.
  */
 data class TerrainConflictParameters(
     val lookAheadDistanceMeters: Double = 20_000.0,
@@ -82,5 +84,6 @@ data class TerrainConflictParameters(
     val cautionClearanceMeters: Double = 150.0,
     val warningClearanceMeters: Double = 60.0,
     val cautionTimeToImpactSeconds: Double = 60.0,
-    val warningTimeToImpactSeconds: Double = 30.0
+    val warningTimeToImpactSeconds: Double = 30.0,
+    val nearConflictVerticalBandMeters: Double = 50.0
 )

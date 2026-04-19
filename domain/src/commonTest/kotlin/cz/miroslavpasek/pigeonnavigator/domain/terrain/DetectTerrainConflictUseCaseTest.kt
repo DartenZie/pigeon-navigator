@@ -80,6 +80,69 @@ class DetectTerrainConflictUseCaseTest {
         assertFalse(prediction.hasConflict)
         assertEquals(TerrainWarningLevel.None, prediction.warningLevel)
     }
+
+    @Test
+    fun marksNearConflictAtMinusFiftyMetersVerticalDelta() = runBlocking {
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = FakeTerrainRepository { _, _ -> 950.0 }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0,
+                longitude = 14.0,
+                altitudeMeters = 1_000.0,
+                speedMetersPerSecond = 40.0,
+                bearingDegrees = 0.0
+            )
+        )
+
+        val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
+        assertFalse(prediction.hasConflict)
+        assertTrue(prediction.hazardSamples.isNotEmpty())
+        assertTrue(prediction.hazardSamples.all { it.level == TerrainHazardLevel.NearConflict })
+    }
+
+    @Test
+    fun doesNotMarkNearConflictWhenTerrainIsBelowMinusFiftyMetersBand() = runBlocking {
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = FakeTerrainRepository { _, _ -> 949.0 }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0,
+                longitude = 14.0,
+                altitudeMeters = 1_000.0,
+                speedMetersPerSecond = 40.0,
+                bearingDegrees = 0.0
+            )
+        )
+
+        val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
+        assertTrue(prediction.hazardSamples.none { it.level == TerrainHazardLevel.NearConflict })
+    }
+
+    @Test
+    fun marksConflictWhenTerrainReachesAircraftAltitude() = runBlocking {
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = FakeTerrainRepository { _, _ -> 1_000.0 }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0,
+                longitude = 14.0,
+                altitudeMeters = 1_000.0,
+                speedMetersPerSecond = 40.0,
+                bearingDegrees = 0.0
+            )
+        )
+
+        val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
+        assertTrue(prediction.hasConflict)
+        assertTrue(prediction.hazardSamples.any { it.level == TerrainHazardLevel.Conflict })
+    }
 }
 
 private class FakeTerrainRepository(

@@ -66,10 +66,11 @@ class DetectTerrainConflictUseCase(
                     is AppResult.Success -> {
                         validSampleCount += 1
 
+                        val terrainDeltaMeters = terrainSample.value - snapshot.altitudeMeters
                         val clearanceMeters = snapshot.altitudeMeters - terrainSample.value - parameters.safetyMarginMeters
                         minClearanceMeters = min(minClearanceMeters, clearanceMeters)
 
-                        if (clearanceMeters < 0.0) {
+                        if (terrainDeltaMeters >= 0.0) {
                             hazardSamples += TerrainHazardSample(
                                 latitude = samplePoint.first,
                                 longitude = samplePoint.second,
@@ -77,7 +78,7 @@ class DetectTerrainConflictUseCase(
                             )
                             nearestImpactDistanceMeters = minPositive(nearestImpactDistanceMeters, distanceMeters)
                             break
-                        } else if (clearanceMeters <= parameters.cautionClearanceMeters) {
+                        } else if (terrainDeltaMeters >= -parameters.nearConflictVerticalBandMeters) {
                             hazardSamples += TerrainHazardSample(
                                 latitude = samplePoint.first,
                                 longitude = samplePoint.second,

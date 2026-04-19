@@ -22,3 +22,11 @@ class MapTapLookupHelper {
         return KoinHelper().getMapTapLookupHandle()
     }
 }
+
+/// Resolves shared terrain warning handles for Swift-side consumers.
+class TerrainWarningHelper {
+    /// Creates a new `TerrainWarningHandle` from the shared dependency graph.
+    static func resolve() -> TerrainWarningHandle {
+        return KoinHelper().getTerrainWarningHandle()
+    }
+}

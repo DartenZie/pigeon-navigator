@@ -35,6 +35,10 @@ struct NavigateView: UIViewRepresentable {
     private let userGuidanceConeLayerId = "user-guidance-cone-layer"
     private let userGuidanceMinuteMarkSourceId = "user-guidance-minute-mark-source"
     private let userGuidanceMinuteMarkLayerId = "user-guidance-minute-mark-layer"
+    private let terrainHazardNearSourceId = "terrain-hazard-near-source"
+    private let terrainHazardNearLayerId = "terrain-hazard-near-layer"
+    private let terrainHazardConflictSourceId = "terrain-hazard-conflict-source"
+    private let terrainHazardConflictLayerId = "terrain-hazard-conflict-layer"
     private let userGuidanceLookAheadMeters = 20_000.0
     private let userGuidanceConeHalfAngleDegrees = 25.0
     private let userGuidanceMaxMinuteMarks = 12
@@ -168,7 +172,11 @@ struct NavigateView: UIViewRepresentable {
         context.coordinator.onAwayFromUserLocationChange = onAwayFromUserLocationChange
         context.coordinator.renderTerrainHazardsTemplate(
             mapView,
-            points: terrainHazardPoints
+            points: terrainHazardPoints,
+            nearSourceId: terrainHazardNearSourceId,
+            nearLayerId: terrainHazardNearLayerId,
+            conflictSourceId: terrainHazardConflictSourceId,
+            conflictLayerId: terrainHazardConflictLayerId
         )
         context.coordinator.renderUserLocationIndicator(
             mapView,
@@ -376,9 +384,67 @@ struct NavigateView: UIViewRepresentable {
             forwardMapTap(coordinate, source: "delegate")
         }
 
-        func renderTerrainHazardsTemplate(_ mapView: MLNMapView, points: [TerrainHazardOverlayPoint]) {
-            _ = mapView
-            _ = points
+        func renderTerrainHazardsTemplate(
+            _ mapView: MLNMapView,
+            points: [TerrainHazardOverlayPoint],
+            nearSourceId: String,
+            nearLayerId: String,
+            conflictSourceId: String,
+            conflictLayerId: String
+        ) {
+            guard let style = mapView.style else { return }
+
+            let nearSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: nearSourceId) as? MLNShapeSource {
+                nearSource = existing
+            } else {
+                nearSource = MLNShapeSource(identifier: nearSourceId, shape: nil, options: nil)
+                style.addSource(nearSource)
+            }
+
+            if style.layer(withIdentifier: nearLayerId) == nil {
+                let layer = MLNCircleStyleLayer(identifier: nearLayerId, source: nearSource)
+                layer.circleColor = NSExpression(
+                    forConstantValue: UIColor(red: 1.0, green: 0.757, blue: 0.027, alpha: 1.0)
+                )
+                layer.circleRadius = NSExpression(forConstantValue: 5)
+                layer.circleOpacity = NSExpression(forConstantValue: 0.78)
+                style.addLayer(layer)
+            }
+
+            let conflictSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: conflictSourceId) as? MLNShapeSource {
+                conflictSource = existing
+            } else {
+                conflictSource = MLNShapeSource(identifier: conflictSourceId, shape: nil, options: nil)
+                style.addSource(conflictSource)
+            }
+
+            if style.layer(withIdentifier: conflictLayerId) == nil {
+                let layer = MLNCircleStyleLayer(identifier: conflictLayerId, source: conflictSource)
+                layer.circleColor = NSExpression(
+                    forConstantValue: UIColor(red: 0.898, green: 0.224, blue: 0.208, alpha: 1.0)
+                )
+                layer.circleRadius = NSExpression(forConstantValue: 6.5)
+                layer.circleOpacity = NSExpression(forConstantValue: 0.86)
+                style.addLayer(layer)
+            }
+
+            let nearPoints = points.filter { $0.severity == .near }
+            let conflictPoints = points.filter { $0.severity == .conflict }
+
+            nearSource.shape = buildTerrainHazardShape(points: nearPoints)
+            conflictSource.shape = buildTerrainHazardShape(points: conflictPoints)
+        }
+
+        private func buildTerrainHazardShape(points: [TerrainHazardOverlayPoint]) -> MLNShape? {
+            guard !points.isEmpty else { return nil }
+            let pointFeatures: [MLNShape] = points.map { point in
+                let feature = MLNPointFeature()
+                feature.coordinate = point.coordinate
+                return feature
+            }
+            return MLNShapeCollectionFeature(shapes: pointFeatures)
         }
 
         func renderUserLocationIndicator(

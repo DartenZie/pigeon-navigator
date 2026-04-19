@@ -6,11 +6,18 @@ import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvi
 import cz.miroslavpasek.pigeonnavigator.data.aviation.AviationPackageBootstrapper
 import cz.miroslavpasek.pigeonnavigator.data.aviation.di.aviationDataModule
 import cz.miroslavpasek.pigeonnavigator.data.search.di.searchDataModule
+import cz.miroslavpasek.pigeonnavigator.data.terrain.di.terrainDataModule
+import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
+import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
 import cz.miroslavpasek.pigeonnavigator.feature.search.api.SearchStore
 import cz.miroslavpasek.pigeonnavigator.feature.search.di.searchFeatureModule
 import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchEffect
 import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchIntent
 import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchState
+import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarningStore
+import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarningFeatureModule
+import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
+import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +62,9 @@ fun initKoin() {
             iosMapTapLookupModule,
             aviationDataModule(),
             searchDataModule(),
-            searchFeatureModule()
+            terrainDataModule(),
+            searchFeatureModule(),
+            terrainWarningFeatureModule()
         )
     }
 
@@ -75,6 +84,9 @@ class KoinHelper {
 
     /** Returns a lifecycle-managed bridge over [MapTapLookupCoordinator] for Swift UI layers. */
     fun getMapTapLookupHandle(): MapTapLookupHandle = MapTapLookupHandle(KoinPlatform.getKoin().get())
+
+    /** Returns a lifecycle-managed bridge over [TerrainWarningStore] for Swift UI layers. */
+    fun getTerrainWarningHandle(): TerrainWarningHandle = TerrainWarningHandle(KoinPlatform.getKoin().get())
 }
 
 /**
@@ -173,6 +185,56 @@ class MapTapLookupHandle(
     }
 }
 
+/** Bridges [TerrainWarningStore] state and telemetry updates to a Swift-friendly API surface. */
+class TerrainWarningHandle(
+    private val store: TerrainWarningStore
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var stateJob: Job? = null
+
+    /** Starts collecting terrain warning state updates until [stopState] or [close] is called. */
+    fun startState(onEach: (TerrainWarningViewState) -> Unit) {
+        if (stateJob != null) return
+        stateJob = scope.launch {
+            store.state.collect { onEach(it.toViewState()) }
+        }
+    }
+
+    /** Stops state collection started by [startState]. */
+    fun stopState() {
+        stateJob?.cancel()
+        stateJob = null
+    }
+
+    /** Sends aircraft telemetry to the shared terrain warning store. */
+    fun onLocationUpdated(
+        latitude: Double,
+        longitude: Double,
+        altitudeMeters: Double,
+        speedMetersPerSecond: Double,
+        bearingDegrees: Double
+    ) {
+        store.send(
+            TerrainWarningIntent.LocationUpdated(
+                snapshot = AircraftSnapshot(
+                    latitude = latitude,
+                    longitude = longitude,
+                    altitudeMeters = altitudeMeters,
+                    speedMetersPerSecond = speedMetersPerSecond,
+                    bearingDegrees = bearingDegrees
+                )
+            )
+        )
+    }
+
+    /** Stops active jobs and closes the underlying store. */
+    fun close() {
+        stopState()
+        scope.cancel()
+        store.close()
+    }
+}
+
 data class MapTapAirportItem(
     val id: String,
     val name: String,
@@ -192,6 +254,16 @@ data class MapTapLookupViewState(
     val errorMessage: String? = null,
     val airports: List<MapTapAirportItem> = emptyList(),
     val airspaces: List<MapTapAirspaceItem> = emptyList()
+)
+
+data class TerrainHazardViewPoint(
+    val latitude: Double,
+    val longitude: Double,
+    val severity: String
+)
+
+data class TerrainWarningViewState(
+    val hazardPoints: List<TerrainHazardViewPoint> = emptyList()
 )
 
 private fun MapTapLookupState.toViewState(): MapTapLookupViewState {
@@ -215,6 +287,25 @@ private fun MapTapLookupState.toViewState(): MapTapLookupViewState {
             )
         }
     )
+}
+
+private fun TerrainWarningState.toViewState(): TerrainWarningViewState {
+    return TerrainWarningViewState(
+        hazardPoints = prediction?.hazardSamples?.map {
+            TerrainHazardViewPoint(
+                latitude = it.latitude,
+                longitude = it.longitude,
+                severity = it.level.toSeverityTag()
+            )
+        } ?: emptyList()
+    )
+}
+
+private fun TerrainHazardLevel.toSeverityTag(): String {
+    return when (this) {
+        TerrainHazardLevel.NearConflict -> "near"
+        TerrainHazardLevel.Conflict -> "conflict"
+    }
 }
 
 private fun Double.toDistanceLabel(): String {

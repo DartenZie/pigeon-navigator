@@ -35,7 +35,9 @@ kotlin {
             implementation(projects.domain)
             implementation(projects.data.searchData)
             implementation(projects.data.aviationData)
+            implementation(projects.data.terrainData)
             implementation(projects.feature.searchFeature)
+            implementation(projects.feature.terrainWarningFeature)
         }
         androidMain.dependencies {
             implementation(libs.play.services.location)

@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var isAwayFromUserLocation = false
     @State private var hudSize: HUDSize = .bar
     @StateObject private var mapTapLookup = MapTapLookupViewModelWrapper()
+    @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
@@ -38,21 +39,18 @@ struct ContentView: View {
                     locationAccuracyMeters: locationAccuracyMeters,
                     locationSpeedMetersPerSecond: locationSpeedMetersPerSecond,
                     locationBearingDegrees: locationBearingDegrees,
-                    terrainHazardPoints: [],
+                    terrainHazardPoints: terrainWarning.hazardPoints,
                     followUser: true,
                     onDirectionChange: { direction in
                         mapDirection = direction
                     },
                     onMapTap: { tapCoordinate in
-                        print("[ContentView] onMapTap lat=\(tapCoordinate.latitude) lng=\(tapCoordinate.longitude)")
                         DispatchQueue.main.async {
                             mapTapLookup.queryAt(
                                 latitude: tapCoordinate.latitude,
                                 longitude: tapCoordinate.longitude
                             )
-                            print("[ContentView] hudSize=\(hudSize)")
                             if hudSize != .bar {
-                                print("[ContentView] Collapsing hudSize from \(hudSize) to .bar")
                                 withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
                                     hudSize = .bar
                                 }
@@ -81,6 +79,13 @@ struct ContentView: View {
                         locationSpeedMetersPerSecond = Double(loc.speedMetersPerSecond)
                         locationAltitudeMeters = loc.altitudeMeters
                         locationBearingDegrees = Double(loc.bearingDegrees)
+                        terrainWarning.onLocationUpdated(
+                            latitude: loc.latitude,
+                            longitude: loc.longitude,
+                            altitudeMeters: loc.altitudeMeters,
+                            speedMetersPerSecond: Double(loc.speedMetersPerSecond),
+                            bearingDegrees: Double(loc.bearingDegrees)
+                        )
                     }
                 }
                 .onDisappear {
@@ -160,6 +165,53 @@ final class MapTapLookupViewModelWrapper: ObservableObject {
 
     func queryAt(latitude: Double, longitude: Double) {
         handle.queryAt(latitude: latitude, longitude: longitude)
+    }
+
+    deinit {
+        handle.close()
+    }
+}
+
+@MainActor
+final class TerrainWarningViewModelWrapper: ObservableObject {
+    private let handle: TerrainWarningHandle
+
+    @Published var hazardPoints: [TerrainHazardOverlayPoint] = []
+
+    init() {
+        self.handle = TerrainWarningHelper.resolve()
+        handle.startState { [weak self] state in
+            guard let self else { return }
+            self.hazardPoints = state.hazardPoints.compactMap { point in
+                guard let severity = TerrainOverlaySeverity(severityTag: point.severity) else {
+                    return nil
+                }
+
+                return TerrainHazardOverlayPoint(
+                    coordinate: CLLocationCoordinate2D(
+                        latitude: point.latitude,
+                        longitude: point.longitude
+                    ),
+                    severity: severity
+                )
+            }
+        }
+    }
+
+    func onLocationUpdated(
+        latitude: Double,
+        longitude: Double,
+        altitudeMeters: Double,
+        speedMetersPerSecond: Double,
+        bearingDegrees: Double
+    ) {
+        handle.onLocationUpdated(
+            latitude: latitude,
+            longitude: longitude,
+            altitudeMeters: altitudeMeters,
+            speedMetersPerSecond: speedMetersPerSecond,
+            bearingDegrees: bearingDegrees
+        )
     }
 
     deinit {
