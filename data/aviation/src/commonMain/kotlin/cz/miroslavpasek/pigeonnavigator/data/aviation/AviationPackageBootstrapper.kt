@@ -12,7 +12,7 @@ class AviationPackageBootstrapper(
 ) {
     suspend fun ensureInstalledFromAsset(assetPath: String = DEFAULT_BOOTSTRAP_ASSET_PATH) {
         val active = repository.getActiveMapPackage()
-        if (active is AppResult.Success) {
+        if (active is AppResult.Success && repository.activePackageFilesExist()) {
             return
         }
 

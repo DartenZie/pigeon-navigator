@@ -178,6 +178,12 @@ class AviationRepositoryImpl(
         )
     }
 
+    override suspend fun activePackageFilesExist(): Boolean {
+        val active = activePackageRecord() ?: return false
+        return fileSystem.exists(active.mapPmtilesPath) &&
+            fileSystem.exists(active.terrainPmtilesPath)
+    }
+
     override suspend fun nearbyAirports(
         latitude: Double,
         longitude: Double,

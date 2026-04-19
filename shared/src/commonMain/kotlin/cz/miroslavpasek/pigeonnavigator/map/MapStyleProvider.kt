@@ -41,13 +41,14 @@ class MapStyleProvider(
 
     /**
      * Returns runtime style JSON with terrain source and hillshade injected,
-     * or null when no active package is installed yet.
+     * or null when no active package with valid files is available.
      */
     fun getStyleJson(): String? {
         cachedStyleJson?.let { return it }
 
+        val resolvedConfig = resolveActiveConfig() ?: return null
+
         val styleJson = runCatching {
-            val resolvedConfig = resolveActiveConfig()
             val baseStyle = assetLoader.readText(config.baseStyleAssetPath)
             injectSourcesAndHillshade(baseStyle, resolvedConfig)
         }.getOrNull() ?: return null
@@ -56,7 +57,11 @@ class MapStyleProvider(
         return styleJson
     }
 
-    private fun resolveActiveConfig(): MapStyleConfig {
+    /**
+     * Returns a [MapStyleConfig] pointing to the active package's local PMTiles files,
+     * or null when no active package exists or its files are missing from disk.
+     */
+    private fun resolveActiveConfig(): MapStyleConfig? {
         val active = runBlocking { getActiveMapPackageUseCase() }
         return when (active) {
             is AppResult.Success -> config.copy(
@@ -65,9 +70,9 @@ class MapStyleProvider(
             ).takeIf {
                 pathChecker.exists(active.value.mapPmtilesAbsolutePath) &&
                     pathChecker.exists(active.value.terrainPmtilesAbsolutePath)
-            } ?: config
+            }
 
-            is AppResult.Failure -> config
+            is AppResult.Failure -> null
         }
     }
 

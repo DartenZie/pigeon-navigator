@@ -3,6 +3,11 @@ package cz.miroslavpasek.pigeonnavigator.map
 /**
  * Defines style asset and source identifiers used to build runtime map style JSON.
  *
+ * Note: [tileArchiveLocation] and [terrainArchiveLocation] defaults are never used in
+ * production — [MapStyleProvider] returns null when no active package with valid on-disk
+ * files is present, so these fields are only meaningful when explicitly overridden via
+ * [copy] inside the provider.
+ *
  * @property baseStyleAssetPath Asset path to the base style JSON template.
  * @property pmtilesSourceId Source id used for vector PMTiles layers.
  * @property tileArchiveLocation Location of the vector PMTiles archive.
@@ -13,24 +18,8 @@ package cz.miroslavpasek.pigeonnavigator.map
 data class MapStyleConfig(
     val baseStyleAssetPath: String = "style.json",
     val pmtilesSourceId: String = "pmtiles-source",
-    val tileArchiveLocation: TileArchiveLocation = TileArchiveLocation.Asset("cz.pmtiles"),
+    val tileArchiveLocation: TileArchiveLocation = TileArchiveLocation.LocalFile(""),
     val terrainDemSourceId: String = "terrain-dem-source",
-    val terrainArchiveLocation: TileArchiveLocation = TileArchiveLocation.Asset("terrain.pmtiles"),
+    val terrainArchiveLocation: TileArchiveLocation = TileArchiveLocation.LocalFile(""),
     val hillshadeLayerId: String = "terrain-hillshade"
-) {
-    /**
-     * Creates config with default terrain settings while overriding base style and vector source.
-     */
-    constructor(
-        baseStyleAssetPath: String,
-        pmtilesSourceId: String,
-        tileArchiveLocation: TileArchiveLocation
-    ) : this(
-        baseStyleAssetPath = baseStyleAssetPath,
-        pmtilesSourceId = pmtilesSourceId,
-        tileArchiveLocation = tileArchiveLocation,
-        terrainDemSourceId = "terrain-dem-source",
-        terrainArchiveLocation = TileArchiveLocation.Asset("terrain.pmtiles"),
-        hillshadeLayerId = "terrain-hillshade"
-    )
-}
+)

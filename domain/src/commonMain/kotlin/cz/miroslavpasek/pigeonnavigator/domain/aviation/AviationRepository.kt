@@ -18,6 +18,13 @@ interface AviationRepository {
     suspend fun getActiveMapPackage(): AppResult<ActiveMapPackage, Failure>
 
     /**
+     * Returns true when an active package record exists in the database **and** its
+     * PMTiles files are present on disk.  Use this to detect the case where a DB record
+     * survived a reinstall but the associated files were wiped.
+     */
+    suspend fun activePackageFilesExist(): Boolean
+
+    /**
      * Returns airports near a coordinate sorted by ascending distance.
      */
     suspend fun nearbyAirports(

@@ -127,6 +127,8 @@ private class RecordingAviationRepository : AviationRepository {
         return AppResult.Success(emptyList())
     }
 
+    override suspend fun activePackageFilesExist(): Boolean = true
+
     override suspend fun containingAirspaces(
         latitude: Double,
         longitude: Double

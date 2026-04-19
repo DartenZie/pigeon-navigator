@@ -169,6 +169,8 @@ private class FakeAviationRepository : AviationRepository {
         )
     }
 
+    override suspend fun activePackageFilesExist(): Boolean = true
+
     override suspend fun containingAirspaces(
         latitude: Double,
         longitude: Double
