@@ -53,7 +53,12 @@ class HomeViewModel(
     }
 
     fun onMapTapped(latitude: Double, longitude: Double) {
+        println("[HomeViewModel] onMapTapped lat=$latitude lng=$longitude")
         mapTapLookupCoordinator.queryAt(latitude = latitude, longitude = longitude)
+        if (_uiState.value.searchDock.isExpanded) {
+            println("[HomeViewModel] Collapsing search dock")
+            searchDockStore.send(SearchDockIntent.ExpandedChanged(expanded = false))
+        }
     }
 
     fun onSearchDockExpandedChanged(expanded: Boolean) {

@@ -23,6 +23,7 @@ class MapStyleProvider(
     private val config: MapStyleConfig = MapStyleConfig(),
     private val assetLoader: PlatformAssetLoader = PlatformAssetLoader(),
     private val urlResolver: PmtilesUrlResolver = PmtilesUrlResolver(),
+    private val pathChecker: PlatformPathChecker = PlatformPathChecker(),
     private val getActiveMapPackageUseCase: GetActiveMapPackageUseCase = KoinPlatform.getKoin().get()
 ) {
     private companion object {
@@ -45,22 +46,28 @@ class MapStyleProvider(
     fun getStyleJson(): String? {
         cachedStyleJson?.let { return it }
 
-        val resolvedConfig = resolveActiveConfig() ?: return null
-        val baseStyle = assetLoader.readText(config.baseStyleAssetPath)
-        val styleJson = injectSourcesAndHillshade(baseStyle, resolvedConfig)
+        val styleJson = runCatching {
+            val resolvedConfig = resolveActiveConfig()
+            val baseStyle = assetLoader.readText(config.baseStyleAssetPath)
+            injectSourcesAndHillshade(baseStyle, resolvedConfig)
+        }.getOrNull() ?: return null
+
         cachedStyleJson = styleJson
         return styleJson
     }
 
-    private fun resolveActiveConfig(): MapStyleConfig? {
+    private fun resolveActiveConfig(): MapStyleConfig {
         val active = runBlocking { getActiveMapPackageUseCase() }
         return when (active) {
             is AppResult.Success -> config.copy(
                 tileArchiveLocation = TileArchiveLocation.LocalFile(active.value.mapPmtilesAbsolutePath),
                 terrainArchiveLocation = TileArchiveLocation.LocalFile(active.value.terrainPmtilesAbsolutePath)
-            )
+            ).takeIf {
+                pathChecker.exists(active.value.mapPmtilesAbsolutePath) &&
+                    pathChecker.exists(active.value.terrainPmtilesAbsolutePath)
+            } ?: config
 
-            is AppResult.Failure -> null
+            is AppResult.Failure -> config
         }
     }
 

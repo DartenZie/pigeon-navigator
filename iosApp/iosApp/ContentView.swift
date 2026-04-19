@@ -12,12 +12,13 @@ struct ContentView: View {
     @State private var resetNorthToken: Int = 0
     @State private var recenterOnUserToken: Int = 0
     @State private var isAwayFromUserLocation = false
+    @State private var hudSize: HUDSize = .bar
     @StateObject private var mapTapLookup = MapTapLookupViewModelWrapper()
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
     private let settingsTrailingPadding: CGFloat = 16
-    private let settingsBottomGap: CGFloat = 14
+    private let hudClusterGapFromSearchBar: CGFloat = 12
     
     var body: some View {
         let speedKmh = locationSpeedMetersPerSecond.isFinite
@@ -29,7 +30,7 @@ struct ContentView: View {
 
         GeometryReader { proxy in
             let safeInsets = proxy.safeAreaInsets
-            let reservedTop = safeInsets.top + settingsTopPadding + settingsButtonSize + settingsBottomGap
+            let hudSearchBarHeight = max(hudSize.height(in: proxy), 48)
 
             ZStack(alignment: .bottom) {
                 NavigateView(
@@ -43,11 +44,19 @@ struct ContentView: View {
                         mapDirection = direction
                     },
                     onMapTap: { tapCoordinate in
+                        print("[ContentView] onMapTap lat=\(tapCoordinate.latitude) lng=\(tapCoordinate.longitude)")
                         DispatchQueue.main.async {
                             mapTapLookup.queryAt(
                                 latitude: tapCoordinate.latitude,
                                 longitude: tapCoordinate.longitude
                             )
+                            print("[ContentView] hudSize=\(hudSize)")
+                            if hudSize != .bar {
+                                print("[ContentView] Collapsing hudSize from \(hudSize) to .bar")
+                                withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                                    hudSize = .bar
+                                }
+                            }
                         }
                     },
                     onAwayFromUserLocationChange: { isAway in
@@ -56,55 +65,48 @@ struct ContentView: View {
                     resetNorthToken: resetNorthToken,
                     recenterOnUserToken: recenterOnUserToken
                 )
-                    .ignoresSafeArea()
-                    .onAppear {
-                        observer.start { loc in
-                            guard !loc.requiresPermission else {
-                                print("Location permission required")
-                                return
-                            }
-
-                            coordinate = CLLocationCoordinate2D(
-                                latitude: loc.latitude,
-                                longitude: loc.longitude
-                            )
-                            locationAccuracyMeters = loc.horizontalAccuracyMeters?.doubleValue
-                            locationSpeedMetersPerSecond = Double(loc.speedMetersPerSecond)
-                            locationAltitudeMeters = loc.altitudeMeters
-                            locationBearingDegrees = Double(loc.bearingDegrees)
+                .ignoresSafeArea()
+                .onAppear {
+                    observer.start { loc in
+                        guard !loc.requiresPermission else {
+                            print("Location permission required")
+                            return
                         }
-                    }
-                    .onDisappear {
-                        observer.stop()
-                    }
 
-                HUDCluster(
-                    speed: speedKmh,
-                    altitude: altitudeMeters,
-                    mapDirection: mapDirection,
-                    isRecenterVisible: isAwayFromUserLocation,
-                    onCompassTap: {
-                        resetNorthToken += 1
-                    },
-                    onRecenterTap: {
-                        recenterOnUserToken += 1
+                        coordinate = CLLocationCoordinate2D(
+                            latitude: loc.latitude,
+                            longitude: loc.longitude
+                        )
+                        locationAccuracyMeters = loc.horizontalAccuracyMeters?.doubleValue
+                        locationSpeedMetersPerSecond = Double(loc.speedMetersPerSecond)
+                        locationAltitudeMeters = loc.altitudeMeters
+                        locationBearingDegrees = Double(loc.bearingDegrees)
                     }
-                )
-                .padding(.horizontal)
-                .padding(.bottom, 92)
-                .zIndex(1)
-
-                ExpandableSearchPanel(
-                    containerSize: proxy.size,
-                    topReservedHeight: reservedTop,
-                    selectedLatitude: mapTapLookup.selectedLatitude,
-                    selectedLongitude: mapTapLookup.selectedLongitude,
-                    isLoading: mapTapLookup.isLoading,
-                    errorMessage: mapTapLookup.errorMessage,
-                    airports: mapTapLookup.airports,
-                    airspaces: mapTapLookup.airspaces
-                )
-                .zIndex(2)
+                }
+                .onDisappear {
+                    observer.stop()
+                }
+                
+                HUDSearchBar(hudSize: $hudSize)
+                    .padding(.horizontal, hudSize == .full ? 0 : 16)
+                    .zIndex(2)
+                    .animation(.spring(response: 0.44, dampingFraction: 0.76), value: hudSize)
+                
+                if hudSize != .full {
+                    HUDCluster(
+                        speed: speedKmh,
+                        altitude: altitudeMeters,
+                        mapDirection: mapDirection,
+                        isRecenterVisible: isAwayFromUserLocation,
+                        onCompassTap: { resetNorthToken += 1 },
+                        onRecenterTap: { recenterOnUserToken += 1 }
+                    )
+                    .padding(.horizontal)
+                    .padding(.bottom, hudSearchBarHeight + hudClusterGapFromSearchBar)
+                    .zIndex(1)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .animation(.spring(response: 0.44, dampingFraction: 0.76), value: hudSize)
+                }
 
                 VStack {
                     HStack {
@@ -119,7 +121,7 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                         .modifier(GlassBubbleStyle(shape: Circle()))
-                        .padding(.top, safeInsets.top + settingsTopPadding)
+                        .padding(.top, settingsTopPadding)
                         .padding(.trailing, settingsTrailingPadding)
                     }
 

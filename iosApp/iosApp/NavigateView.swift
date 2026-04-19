@@ -52,9 +52,14 @@ struct NavigateView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> MLNMapView {
         let styleURL = resolveStyleURL()
-            ?? Bundle.main.url(forResource: "style", withExtension: "json", subdirectory: "MapAssets")!
-                 
-        let mapView = MLNMapView(frame: .zero, styleURL: styleURL)
+            ?? Bundle.main.url(forResource: "style", withExtension: "json", subdirectory: "MapAssets")
+
+        let mapView = MLNMapView(frame: .zero)
+        if let styleURL {
+            mapView.styleURL = styleURL
+        } else {
+            print("Failed to resolve map style URL")
+        }
         mapView.delegate = context.coordinator
         
         mapView.allowsRotating = true
@@ -65,6 +70,13 @@ struct NavigateView: UIViewRepresentable {
             .compactMap { $0 as? UIPanGestureRecognizer }
             .forEach { $0.addTarget(context.coordinator, action: #selector(Coordinator.handlePanGesture(_:))) }
 
+        let mapTapGesture = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleMapTapGesture(_:))
+        )
+        mapTapGesture.cancelsTouchesInView = false
+        mapView.addGestureRecognizer(mapTapGesture)
+
         return mapView
     }
 
@@ -74,7 +86,15 @@ struct NavigateView: UIViewRepresentable {
             return nil
         }
         let styleJson = normalizeStyleForIOS(styleJson: rawStyleJson)
-        let outputDir = FileManager.default.temporaryDirectory.appendingPathComponent("map-style", isDirectory: true)
+
+        guard let appSupportDirectory = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first else {
+            return nil
+        }
+
+        let outputDir = appSupportDirectory.appendingPathComponent("map-style", isDirectory: true)
         let outputFile = outputDir.appendingPathComponent("style.generated.json")
 
         do {
@@ -249,6 +269,7 @@ struct NavigateView: UIViewRepresentable {
         let awayFromUserDistanceMeters: CLLocationDistance
         var lastResetNorthToken: Int = 0
         var lastRecenterOnUserToken: Int = 0
+        private var lastForwardedMapTap: (coordinate: CLLocationCoordinate2D, timestamp: TimeInterval)?
 
         init(
             onDirectionChange: @escaping (CLLocationDirection) -> Void,
@@ -267,6 +288,41 @@ struct NavigateView: UIViewRepresentable {
             if recognizer.state == .began {
                 isTrackingUserLocation = false
             }
+        }
+
+        @objc
+        func handleMapTapGesture(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended,
+                  let mapView = recognizer.view as? MLNMapView else {
+                return
+            }
+
+            let tapPoint = recognizer.location(in: mapView)
+            let coordinate = mapView.convert(tapPoint, toCoordinateFrom: mapView)
+            forwardMapTap(coordinate, source: "gesture")
+        }
+
+        private func forwardMapTap(_ coordinate: CLLocationCoordinate2D, source: String) {
+            let now = Date().timeIntervalSince1970
+            if let previous = lastForwardedMapTap {
+                let previousLocation = CLLocation(
+                    latitude: previous.coordinate.latitude,
+                    longitude: previous.coordinate.longitude
+                )
+                let currentLocation = CLLocation(
+                    latitude: coordinate.latitude,
+                    longitude: coordinate.longitude
+                )
+                let isNearPrevious = previousLocation.distance(from: currentLocation) < 1
+                let isNearInTime = now - previous.timestamp < 0.25
+                if isNearPrevious && isNearInTime {
+                    return
+                }
+            }
+
+            lastForwardedMapTap = (coordinate, now)
+            print("[NavigateView] map tap(\(source)) lat=\(coordinate.latitude) lng=\(coordinate.longitude)")
+            onMapTap(coordinate)
         }
 
         func shouldFollowForLocation(_ location: CLLocation) -> Bool {
@@ -317,7 +373,7 @@ struct NavigateView: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MLNMapView, didTapAt coordinate: CLLocationCoordinate2D) {
-            onMapTap(coordinate)
+            forwardMapTap(coordinate, source: "delegate")
         }
 
         func renderTerrainHazardsTemplate(_ mapView: MLNMapView, points: [TerrainHazardOverlayPoint]) {

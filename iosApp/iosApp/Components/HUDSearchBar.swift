@@ -1,314 +1,199 @@
 import SwiftUI
 import Shared
 
-struct ExpandableSearchPanel: View {
-    let containerSize: CGSize
-    let topReservedHeight: CGFloat
-    let selectedLatitude: Double?
-    let selectedLongitude: Double?
-    let isLoading: Bool
-    let errorMessage: String?
-    let airports: [MapTapAirportItem]
-    let airspaces: [MapTapAirspaceItem]
-
-    @State private var query: String = ""
-    @State private var stage: ExpansionStage = .collapsed
-    @GestureState private var handleDragTranslation: CGFloat = 0
-    @FocusState private var isSearchFocused: Bool
-
-    private enum ExpansionStage {
-        case collapsed
-        case partial
-        case full
+enum HUDSize {
+    case bar, half, full
+    
+    func width(in geo: GeometryProxy) -> CGFloat {
+        switch self {
+        case .bar: return 220
+        case .half: return geo.size.width - 32
+        case .full: return geo.size.width
+        }
     }
-
-    private var hasSelection: Bool {
-        selectedLatitude != nil && selectedLongitude != nil
-    }
-
-    private var collapsedHeight: CGFloat { 64 }
-
-    private var fullHeight: CGFloat {
-        max(collapsedHeight, containerSize.height - topReservedHeight)
-    }
-
-    private var partialHeight: CGFloat {
-        let preferredHalf = containerSize.height * 0.5
-        let preferred = max(preferredHalf, collapsedHeight + 120)
-        return min(fullHeight - 24, preferred)
-    }
-
-    private var baseHeight: CGFloat {
-        switch stage {
-        case .collapsed:
-            return collapsedHeight
-        case .partial:
-            return partialHeight
+    
+    func height(in geo: GeometryProxy) -> CGFloat {
+        switch self {
+        case .bar: return 44
+        case .half: return 320
         case .full:
-            return fullHeight
+            let bottomSafeArea = geo.safeAreaInsets.bottom
+            return geo.size.height + bottomSafeArea - 76
         }
     }
-
-    private var currentHeight: CGFloat {
-        let dragged = baseHeight - handleDragTranslation
-        return min(max(dragged, collapsedHeight), fullHeight)
-    }
-
-    private var horizontalInset: CGFloat {
-        stage == .full ? 0 : 16
-    }
-
-    private var bottomInset: CGFloat {
-        stage == .full ? 0 : 18
-    }
-
-    private var cornerRadius: CGFloat {
-        stage == .full ? 0 : 32
-    }
-
-    private var coordinateLabel: String {
-        guard let lat = selectedLatitude, let lon = selectedLongitude else {
-            return "Search"
+    
+    var cornerRadius: CGFloat {
+        switch self {
+        case .bar: return 32
+        case .half: return 24
+        case .full: return 16
         }
-        return String(format: "%.4f, %.4f", lat, lon)
     }
+    
+    func yOffset(in geo: GeometryProxy) -> CGFloat {
+        switch self {
+        case .bar, .half:
+            return 0
+        case .full:
+            return geo.safeAreaInsets.bottom
+        }
+    }
+}
 
-    private var handleDragGesture: some Gesture {
-        DragGesture(minimumDistance: 4)
-            .updating($handleDragTranslation) { value, state, _ in
+struct HUDSearchBar: View {
+    @Binding var hudSize: HUDSize
+    private var size: HUDSize { hudSize }
+    @GestureState private var dragOffset: CGFloat = 0
+    private let handleTopPadding: CGFloat = 8
+    private let handleWidth: CGFloat = 36
+    private let handleHeight: CGFloat = 5
+    private let searchRowHeight: CGFloat = 48
+    
+    var body: some View {
+        GeometryReader { geo in
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+
+                ZStack(alignment: .top) {
+                    searchRow(geo: geo)
+                    dragHandle
+
+                    if size == .half || size == .full {
+                        resultsContent
+                            .padding(.top, 52)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                }
+                .frame(
+                    width: size.width(in: geo),
+                    height: size.height(in: geo) + dragResistance(dragOffset)
+                )
+                .modifier(HUDSearchBarGlassStyle(cornerRadius: size.cornerRadius, isSolid: size == .full))
+                .clipShape(RoundedRectangle(cornerRadius: size.cornerRadius, style: .continuous))
+                .offset(y: size.yOffset(in: geo))
+                .gesture(dragGesture(geo: geo))
+                .animation(.spring(response: 0.44, dampingFraction: 0.76), value: size)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+    }
+    
+    // MARK: Sub-views
+
+    private var dragHandle: some View {
+        Button {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                hudSize = expandedSize(from: size)
+            }
+        } label: {
+            Capsule(style: .continuous)
+                .fill(.black.opacity(size == .full ? 0.18 : 0.24))
+                .frame(width: handleWidth, height: handleHeight)
+                .frame(maxWidth: .infinity)
+                .padding(.top, handleTopPadding)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+    
+    private func searchRow(geo: GeometryProxy) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.black.opacity(0.8))
+            
+            Text("Search...")
+                .font(.system(size: 14))
+                .foregroundStyle(.black.opacity(0.75))
+                .lineLimit(1)
+            
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .frame(width: size.width(in: geo), height: searchRowHeight)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                hudSize = (size == .bar) ? .half : size
+            }
+        }
+    }
+    
+    private var resultsContent: some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                // TODO: result rows here
+            }
+        }
+    }
+    
+    // MARK: - Drag
+    
+    private func dragGesture(geo: GeometryProxy) -> some Gesture {
+        DragGesture()
+            .updating($dragOffset) { value, state, _ in
                 state = value.translation.height
             }
             .onEnded { value in
-                let projectedHeight = min(
-                    max(baseHeight - value.predictedEndTranslation.height, collapsedHeight),
-                    fullHeight
-                )
-                let collapseThreshold = (collapsedHeight + partialHeight) * 0.5
-                let fullThreshold = (partialHeight + fullHeight) * 0.5
-
-                if projectedHeight >= fullThreshold {
-                    setStage(.full)
-                } else if projectedHeight >= collapseThreshold {
-                    setStage(.partial)
-                } else {
-                    setStage(.collapsed)
+                let velocity = value.predictedEndTranslation.height
+                withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                    hudSize = nextSize(velocity: velocity,
+                                    drag: value.translation.height,
+                                    geo: geo)
                 }
             }
     }
-
-    private func setStage(_ newStage: ExpansionStage, animated: Bool = true) {
-        if animated {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                stage = newStage
-            }
-        } else {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                stage = newStage
-            }
-        }
+    
+    private func nextSize(velocity: CGFloat, drag: CGFloat, geo: GeometryProxy) -> HUDSize {
+        // Fast flick takes priority over position
+        if velocity < -500 { return expandedSize(from: size) }
+        if velocity > 500 { return collapsedSize(from: size) }
+        
+        // Slow drag - pick nearest by distance
+        let projected = size.height(in: geo) - drag
+        return [HUDSize.bar, .half, .full]
+            .min(by: { abs($0.height(in: geo) - projected) < abs($1.height(in: geo) - projected) })!
     }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.black)
-
-                    TextField(coordinateLabel, text: $query)
-                        .focused($isSearchFocused)
-                        .autocorrectionDisabled(true)
-
-                    if !query.isEmpty {
-                        Button {
-                            query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.gray)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .frame(height: 38)
-                .background(
-                    Capsule()
-                        .fill(.white)
-                )
-            }
-            .frame(height: 64)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: 332)
-            .overlay(alignment: .top) {
-                Capsule()
-                    .fill(.gray.opacity(0.55))
-                    .frame(width: 34, height: 4)
-                    .padding(.top, 4)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        if hasSelection {
-                            setStage(.partial)
-                        }
-                    }
-                    .gesture(handleDragGesture)
-            }
-
-            if stage != .collapsed {
-                Divider().padding(.horizontal, 10)
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        if isLoading {
-                            Text("Fetching nearby data...")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        if let errorMessage {
-                            Text(errorMessage)
-                                .font(.footnote)
-                                .foregroundStyle(.red)
-                        }
-
-                        Group {
-                            Text("Airports")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-
-                            if airports.isEmpty {
-                                Text("No airports near this point")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                ForEach(airports, id: \.id) { airport in
-                                    AirportRow(airport: airport)
-                                }
-                            }
-                        }
-
-                        Group {
-                            Text("Airspaces")
-                                .font(.caption)
-                                .fontWeight(.semibold)
-                                .padding(.top, 4)
-
-                            if airspaces.isEmpty {
-                                Text("No airspaces contain this point")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                ForEach(airspaces, id: \.id) { airspace in
-                                    AirspaceRow(airspace: airspace)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 10)
-                    .padding(.bottom, 18)
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 6)
-                        .onChanged { _ in
-                            if stage == .partial {
-                                setStage(.full)
-                            }
-                        }
-                )
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-        .frame(height: currentHeight, alignment: .top)
-        .background(backgroundShape)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .padding(.horizontal, horizontalInset)
-        .padding(.bottom, bottomInset)
-        .animation(.spring(response: 0.3, dampingFraction: 0.9), value: stage)
-        .animation(.spring(response: 0.3, dampingFraction: 0.9), value: handleDragTranslation)
-        .onChange(of: isSearchFocused) { focused in
-            guard focused else { return }
-            setStage(.full, animated: false)
-        }
-        .onChange(of: hasSelection) { value in
-            if value {
-                setStage(.partial)
-            } else {
-                setStage(.collapsed)
-            }
-        }
+    
+    private func expandedSize(from s: HUDSize) -> HUDSize {
+        switch s { case .bar: return .half; case .half: return .full; case .full: return .full }
     }
-
-    @ViewBuilder
-    private var backgroundShape: some View {
-        if stage == .full {
-            Color.white
-        } else {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .modifier(HUDSearchBarGlassStyle())
-        }
+    private func collapsedSize(from s: HUDSize) -> HUDSize {
+        switch s { case .full: return .half;  case .half: return .bar case .bar: return .bar }
     }
-}
-
-private struct AirportRow: View {
-    let airport: MapTapAirportItem
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "location.fill")
-                .font(.caption)
-                .foregroundStyle(.blue)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(airport.id)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                Text(airport.name)
-                    .font(.footnote)
-                    .lineLimit(1)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-
-            Text(airport.distanceLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-    }
-}
-
-private struct AirspaceRow: View {
-    let airspace: MapTapAirspaceItem
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(airspace.name.isEmpty ? airspace.id : airspace.name)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-            Text(airspace.detail)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
+    
+    // Rubber-band resistance past limits
+    private func dragResistance(_ dy: CGFloat) -> CGFloat {
+        guard dy != 0 else { return 0 }
+        return -dy * 0.25
     }
 }
 
 private struct HUDSearchBarGlassStyle: ViewModifier {
+    let cornerRadius: CGFloat
+    let isSolid: Bool
+    
     func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
+        if isSolid {
+            content
+                .background(
+                    Color.white,
+                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                )
+        } else if #available(iOS 26.0, *) {
             content
                 .glassEffect(
                     .regular,
-                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 )
         } else {
             content
                 .background(
                     .ultraThinMaterial,
-                    in: RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .stroke(.white.opacity(0.25), lineWidth: 1)
                 )
         }
