@@ -18,6 +18,9 @@ import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarnin
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarningFeatureModule
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningState
+import cz.miroslavpasek.pigeonnavigator.services.LocationServiceConfig
+import cz.miroslavpasek.pigeonnavigator.services.LocationStreamSource
+import cz.miroslavpasek.pigeonnavigator.services.UdpLocationListenerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +54,18 @@ private val iosMapTapLookupModule = module {
     }
 }
 
+private val iosLocationModule = module {
+    single {
+        LocationServiceConfig(
+            source = LocationStreamSource.UdpDebug,
+            udpListener = UdpLocationListenerConfig(
+                ipAddress = "0.0.0.0",
+                port = 49002,
+            ),
+        )
+    }
+}
+
 /**
  * Starts Koin with shared and search feature modules for iOS.
  */
@@ -59,6 +74,7 @@ fun initKoin() {
         modules(
             sharedModule,
             iosDispatcherModule,
+            iosLocationModule,
             iosMapTapLookupModule,
             aviationDataModule(),
             searchDataModule(),

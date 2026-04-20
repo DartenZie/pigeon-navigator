@@ -1,12 +1,18 @@
 package cz.miroslavpasek.pigeonnavigator.di
 
-import com.google.android.gms.location.LocationServices
-import cz.miroslavpasek.pigeonnavigator.services.LocationService
-import cz.miroslavpasek.pigeonnavigator.services.LocationServiceAndroid
-import org.koin.android.ext.koin.androidContext
+import cz.miroslavpasek.pigeonnavigator.services.LocationServiceConfig
+import cz.miroslavpasek.pigeonnavigator.services.LocationStreamSource
+import cz.miroslavpasek.pigeonnavigator.services.UdpLocationListenerConfig
 import org.koin.dsl.module
 
 val locationModule = module {
-    single { LocationServices.getFusedLocationProviderClient(androidContext()) }
-    single<LocationService> { LocationServiceAndroid(androidContext(), get()) }
+    single {
+        LocationServiceConfig(
+            source = LocationStreamSource.UdpDebug,
+            udpListener = UdpLocationListenerConfig(
+                ipAddress = "0.0.0.0",
+                port = 49002,
+            ),
+        )
+    }
 }

@@ -31,6 +31,7 @@ class PigeonNavigatorApplication : Application() {
             modules(
                 appModule,
                 dispatcherModule,
+                locationModule,
                 sharedModule,
                 aviationDataModule(),
                 searchDataModule(),
