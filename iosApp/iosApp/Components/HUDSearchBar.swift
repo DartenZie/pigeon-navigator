@@ -3,7 +3,7 @@ import Shared
 
 enum HUDSize {
     case bar, half, full
-    
+
     func width(in geo: GeometryProxy) -> CGFloat {
         switch self {
         case .bar: return 220
@@ -11,7 +11,7 @@ enum HUDSize {
         case .full: return geo.size.width
         }
     }
-    
+
     func height(in geo: GeometryProxy) -> CGFloat {
         switch self {
         case .bar: return 44
@@ -21,7 +21,7 @@ enum HUDSize {
             return geo.size.height + bottomSafeArea - 76
         }
     }
-    
+
     var cornerRadius: CGFloat {
         switch self {
         case .bar: return 32
@@ -29,7 +29,7 @@ enum HUDSize {
         case .full: return 16
         }
     }
-    
+
     func yOffset(in geo: GeometryProxy) -> CGFloat {
         switch self {
         case .bar, .half:
@@ -38,17 +38,24 @@ enum HUDSize {
             return geo.safeAreaInsets.bottom
         }
     }
+
+    var isExpanded: Bool {
+        self != .bar
+    }
 }
 
 struct HUDSearchBar: View {
     @Binding var hudSize: HUDSize
+    @ObservedObject var dock: SearchDockViewModelWrapper
+    @ObservedObject var mapTapLookup: MapTapLookupViewModelWrapper
+
     private var size: HUDSize { hudSize }
     @GestureState private var dragOffset: CGFloat = 0
-    private let handleTopPadding: CGFloat = 8
+    private let handleTopPadding: CGFloat = 4
     private let handleWidth: CGFloat = 36
     private let handleHeight: CGFloat = 5
     private let searchRowHeight: CGFloat = 48
-    
+
     var body: some View {
         GeometryReader { geo in
             VStack(spacing: 0) {
@@ -76,8 +83,11 @@ struct HUDSearchBar: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
+        .onChange(of: size.isExpanded) { (expanded: Bool) in
+            dock.onExpandedChanged(expanded)
+        }
     }
-    
+
     // MARK: Sub-views
 
     private var dragHandle: some View {
@@ -95,22 +105,54 @@ struct HUDSearchBar: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     private func searchRow(geo: GeometryProxy) -> some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.black.opacity(0.8))
-            
-            Text("Search...")
+
+            TextField("Search...", text: $dock.query)
                 .font(.system(size: 14))
-                .foregroundStyle(.black.opacity(0.75))
-                .lineLimit(1)
-            
+                .foregroundStyle(.black)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 2)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .onSubmit {
+                    dock.submitSearch()
+                    if size == .bar {
+                        withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                            hudSize = .half
+                        }
+                    }
+                }
+                .onChange(of: dock.query) { (newQuery: String) in
+                    dock.onQueryChange(newQuery)
+
+                    let trimmed = newQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !trimmed.isEmpty {
+                        if size == .bar {
+                            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                                hudSize = .half
+                            }
+                        }
+                    } else {
+                        dock.clearSearch()
+                    }
+                }
+
             Spacer()
         }
+        .padding(.horizontal, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(size == .bar ? Color.clear : Color.white)
+        )
         .padding(.horizontal, 14)
+        .padding(.vertical, 6)
         .frame(width: size.width(in: geo), height: searchRowHeight)
+        .offset(y: size == .bar ? 0 : 6)
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
@@ -118,17 +160,33 @@ struct HUDSearchBar: View {
             }
         }
     }
-    
+
     private var resultsContent: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                // TODO: result rows here
+            VStack(spacing: 12) {
+                routeContent
             }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 16)
         }
     }
-    
+
+    @ViewBuilder
+    private var routeContent: some View {
+        switch dock.activeRoute {
+        case .search:
+            HUDSearchSearchPage(dock: dock)
+        case .routePlanner:
+            HUDSearchRoutePlannerPage()
+        case .mapTap:
+            HUDSearchMapTapPage(mapTapLookup: mapTapLookup)
+        case .nearby:
+            HUDSearchNearbyPage(dock: dock)
+        }
+    }
+
     // MARK: - Drag
-    
+
     private func dragGesture(geo: GeometryProxy) -> some Gesture {
         DragGesture()
             .updating($dragOffset) { value, state, _ in
@@ -143,26 +201,38 @@ struct HUDSearchBar: View {
                 }
             }
     }
-    
+
     private func nextSize(velocity: CGFloat, drag: CGFloat, geo: GeometryProxy) -> HUDSize {
-        // Fast flick takes priority over position
         if velocity < -500 { return expandedSize(from: size) }
         if velocity > 500 { return collapsedSize(from: size) }
-        
-        // Slow drag - pick nearest by distance
+
         let projected = size.height(in: geo) - drag
         return [HUDSize.bar, .half, .full]
             .min(by: { abs($0.height(in: geo) - projected) < abs($1.height(in: geo) - projected) })!
     }
-    
+
     private func expandedSize(from s: HUDSize) -> HUDSize {
-        switch s { case .bar: return .half; case .half: return .full; case .full: return .full }
+        switch s {
+        case .bar:
+            return .half
+        case .half:
+            return .full
+        case .full:
+            return .full
+        }
     }
+
     private func collapsedSize(from s: HUDSize) -> HUDSize {
-        switch s { case .full: return .half;  case .half: return .bar case .bar: return .bar }
+        switch s {
+        case .full:
+            return .half
+        case .half:
+            return .bar
+        case .bar:
+            return .bar
+        }
     }
-    
-    // Rubber-band resistance past limits
+
     private func dragResistance(_ dy: CGFloat) -> CGFloat {
         guard dy != 0 else { return 0 }
         return -dy * 0.25
@@ -172,7 +242,7 @@ struct HUDSearchBar: View {
 private struct HUDSearchBarGlassStyle: ViewModifier {
     let cornerRadius: CGFloat
     let isSolid: Bool
-    
+
     func body(content: Content) -> some View {
         if isSolid {
             content

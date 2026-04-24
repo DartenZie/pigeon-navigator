@@ -73,10 +73,10 @@ fun SearchDock(
     )
 
     val title = when (state.activeRoute) {
-        SearchDockRoute.NearbyPoi -> "Nearby POIs"
-        SearchDockRoute.SearchResults -> "Search Results"
+        SearchDockRoute.Nearby -> "Nearby POIs"
+        SearchDockRoute.Search -> "Search Results"
         SearchDockRoute.RoutePlanner -> "Route Planner"
-        SearchDockRoute.MapPointDetails -> "Tapped Point"
+        SearchDockRoute.MapTap -> "Tapped Point"
     }
 
     Surface(
@@ -216,7 +216,7 @@ private fun ExpandedDockContent(
             }
 
             when (state.activeRoute) {
-                SearchDockRoute.NearbyPoi -> {
+                SearchDockRoute.Nearby -> {
                     item {
                         SectionTitle(text = "Nearby Points of Interest")
                     }
@@ -246,7 +246,7 @@ private fun ExpandedDockContent(
                     }
                 }
 
-                SearchDockRoute.SearchResults -> {
+                SearchDockRoute.Search -> {
                     item {
                         SectionTitle(text = "Search")
                     }
@@ -292,7 +292,7 @@ private fun ExpandedDockContent(
                     }
                 }
 
-                SearchDockRoute.MapPointDetails -> {
+                SearchDockRoute.MapTap -> {
                     val selectedLatitude = mapTapLookup.selectedLatitude
                     val selectedLongitude = mapTapLookup.selectedLongitude
                     item {
@@ -487,8 +487,8 @@ private fun formatDistance(distanceMeters: Double): String {
 }
 
 private fun SearchDockRoute.label(): String = when (this) {
-    SearchDockRoute.NearbyPoi -> "Nearby"
-    SearchDockRoute.SearchResults -> "Search"
+    SearchDockRoute.Nearby -> "Nearby"
+    SearchDockRoute.Search -> "Search"
     SearchDockRoute.RoutePlanner -> "Plan"
-    SearchDockRoute.MapPointDetails -> "Map Tap"
+    SearchDockRoute.MapTap -> "Map Tap"
 }

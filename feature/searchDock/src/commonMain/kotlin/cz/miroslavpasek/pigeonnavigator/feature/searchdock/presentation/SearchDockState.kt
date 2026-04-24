@@ -10,8 +10,8 @@ data class SearchDockPoiItem(
 
 data class SearchDockState(
     val isExpanded: Boolean = false,
-    val activeRoute: SearchDockRoute = SearchDockRoute.NearbyPoi,
-    val availableRoutes: List<SearchDockRoute> = listOf(SearchDockRoute.NearbyPoi),
+    val activeRoute: SearchDockRoute = SearchDockRoute.Nearby,
+    val availableRoutes: List<SearchDockRoute> = SearchDockRoute.entries,
     val selectedRouteOverride: SearchDockRoute? = null,
     val hasMapSelection: Boolean = false,
     val isRoutePlanning: Boolean = false,

@@ -45,7 +45,7 @@ class RealSearchDockStoreTest {
         advanceUntilIdle()
 
         val state = store.state.value
-        assertEquals(SearchDockRoute.SearchResults, state.activeRoute)
+        assertEquals(SearchDockRoute.Search, state.activeRoute)
         assertEquals(listOf("Prague", "Pribram"), state.searchResults)
         assertEquals(false, state.isSearching)
 
@@ -68,7 +68,7 @@ class RealSearchDockStoreTest {
         val state = store.state.value
         assertEquals("Query cannot be blank", state.searchErrorMessage)
         assertEquals(false, state.isSearching)
-        assertTrue(state.availableRoutes.contains(SearchDockRoute.NearbyPoi))
+        assertTrue(state.availableRoutes.contains(SearchDockRoute.Nearby))
 
         store.close()
     }

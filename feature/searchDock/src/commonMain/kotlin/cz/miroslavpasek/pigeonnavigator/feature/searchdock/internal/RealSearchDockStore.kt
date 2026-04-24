@@ -58,7 +58,7 @@ internal class RealSearchDockStore(
             is SearchDockIntent.UserLocationChanged -> {
                 latestLocation = Coordinate(intent.latitude, intent.longitude)
                 reduce(intent)
-                if (state.value.isExpanded && state.value.activeRoute == SearchDockRoute.NearbyPoi) {
+                if (state.value.isExpanded && state.value.activeRoute == SearchDockRoute.Nearby) {
                     loadNearbyPoiIfNeeded(force = state.value.nearbyPoiItems.isEmpty())
                 }
             }
@@ -66,14 +66,14 @@ internal class RealSearchDockStore(
             SearchDockIntent.SubmitSearch -> submitCurrentQuery()
             is SearchDockIntent.ExpandedChanged -> {
                 reduce(intent)
-                if (intent.expanded && state.value.activeRoute == SearchDockRoute.NearbyPoi) {
+                if (intent.expanded && state.value.activeRoute == SearchDockRoute.Nearby) {
                     loadNearbyPoiIfNeeded(force = state.value.nearbyPoiItems.isEmpty())
                 }
             }
 
             is SearchDockIntent.RouteSelected -> {
                 reduce(intent)
-                if (state.value.activeRoute == SearchDockRoute.NearbyPoi && state.value.isExpanded) {
+                if (state.value.activeRoute == SearchDockRoute.Nearby && state.value.isExpanded) {
                     loadNearbyPoiIfNeeded(force = state.value.nearbyPoiItems.isEmpty())
                 }
             }

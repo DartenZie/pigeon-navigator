@@ -14,6 +14,11 @@ import cz.miroslavpasek.pigeonnavigator.feature.search.di.searchFeatureModule
 import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchEffect
 import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchIntent
 import cz.miroslavpasek.pigeonnavigator.feature.search.presentation.SearchState
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.api.SearchDockStore
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.di.searchDockFeatureModule
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarningStore
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarningFeatureModule
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
@@ -80,6 +85,7 @@ fun initKoin() {
             searchDataModule(),
             terrainDataModule(),
             searchFeatureModule(),
+            searchDockFeatureModule(),
             terrainWarningFeatureModule()
         )
     }
@@ -103,6 +109,9 @@ class KoinHelper {
 
     /** Returns a lifecycle-managed bridge over [TerrainWarningStore] for Swift UI layers. */
     fun getTerrainWarningHandle(): TerrainWarningHandle = TerrainWarningHandle(KoinPlatform.getKoin().get())
+
+    /** Returns a lifecycle-managed bridge over [SearchDockStore] for Swift UI layers. */
+    fun getSearchDockHandle(): SearchDockHandle = SearchDockHandle(KoinPlatform.getKoin().get())
 }
 
 /**
@@ -249,6 +258,147 @@ class TerrainWarningHandle(
         scope.cancel()
         store.close()
     }
+}
+
+/**
+ * Bridges [SearchDockStore] state and intents to a Swift-friendly API surface.
+ * Consolidates the HUD search bar routing that used to live in separate platform code.
+ */
+class SearchDockHandle(
+    private val store: SearchDockStore
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var stateJob: Job? = null
+
+    /** Starts collecting dock state updates until [stopState] or [close] is called. */
+    fun startState(onEach: (SearchDockViewState) -> Unit) {
+        if (stateJob != null) return
+        stateJob = scope.launch {
+            store.state.collect { onEach(it.toViewState()) }
+        }
+    }
+
+    /** Stops state collection started by [startState]. */
+    fun stopState() {
+        stateJob?.cancel()
+        stateJob = null
+    }
+
+    /** Forwards query changes to the underlying dock store. */
+    fun onQueryChanged(query: String) {
+        store.send(SearchDockIntent.SearchQueryChanged(query))
+    }
+
+    /** Triggers the shared search pipeline. */
+    fun submitSearch() {
+        store.send(SearchDockIntent.SubmitSearch)
+    }
+
+    /** Clears the current query and results. */
+    fun clearSearch() {
+        store.send(SearchDockIntent.SearchCleared)
+    }
+
+    /** Notifies the dock that the HUD expanded / collapsed. */
+    fun onExpandedChanged(expanded: Boolean) {
+        store.send(SearchDockIntent.ExpandedChanged(expanded = expanded))
+    }
+
+    /** Lets Swift manually select a route by tag (chip tap). */
+    fun selectRoute(routeTag: String) {
+        val route = routeTag.toSearchDockRoute() ?: return
+        store.send(SearchDockIntent.RouteSelected(route = route))
+    }
+
+    /** Toggles the route planning mode on/off. */
+    fun onRoutePlanningChanged(planning: Boolean) {
+        store.send(SearchDockIntent.RoutePlanningChanged(planning = planning))
+    }
+
+    /** Updates whether the user has tapped a point on the map. */
+    fun onMapSelectionChanged(hasSelection: Boolean) {
+        store.send(SearchDockIntent.MapSelectionChanged(hasSelection = hasSelection))
+    }
+
+    /** Pushes the latest user location so nearby POIs can refresh. */
+    fun onUserLocationChanged(latitude: Double, longitude: Double) {
+        store.send(
+            SearchDockIntent.UserLocationChanged(
+                latitude = latitude,
+                longitude = longitude
+            )
+        )
+    }
+
+    /** Stops active jobs and closes the underlying store. */
+    fun close() {
+        stopState()
+        scope.cancel()
+        store.close()
+    }
+}
+
+data class SearchDockPoiViewItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val kindLabel: String,
+    val distanceLabel: String
+)
+
+data class SearchDockViewState(
+    val isExpanded: Boolean = false,
+    val activeRouteTag: String = SearchDockRoute.Nearby.toTag(),
+    val availableRouteTags: List<String> = SearchDockRoute.entries.map { it.toTag() },
+    val isRoutePlanning: Boolean = false,
+    val hasMapSelection: Boolean = false,
+    val searchQuery: String = "",
+    val isSearching: Boolean = false,
+    val searchResults: List<String> = emptyList(),
+    val searchErrorMessage: String? = null,
+    val isNearbyPoiLoading: Boolean = false,
+    val nearbyPoiErrorMessage: String? = null,
+    val nearbyPoiItems: List<SearchDockPoiViewItem> = emptyList()
+)
+
+private fun SearchDockRoute.toTag(): String = when (this) {
+    SearchDockRoute.Nearby -> "nearby"
+    SearchDockRoute.Search -> "search"
+    SearchDockRoute.RoutePlanner -> "routePlanner"
+    SearchDockRoute.MapTap -> "mapTap"
+}
+
+private fun String.toSearchDockRoute(): SearchDockRoute? = when (this) {
+    "nearby" -> SearchDockRoute.Nearby
+    "search" -> SearchDockRoute.Search
+    "routePlanner" -> SearchDockRoute.RoutePlanner
+    "mapTap" -> SearchDockRoute.MapTap
+    else -> null
+}
+
+private fun SearchDockState.toViewState(): SearchDockViewState {
+    return SearchDockViewState(
+        isExpanded = isExpanded,
+        activeRouteTag = activeRoute.toTag(),
+        availableRouteTags = availableRoutes.map { it.toTag() },
+        isRoutePlanning = isRoutePlanning,
+        hasMapSelection = hasMapSelection,
+        searchQuery = searchQuery,
+        isSearching = isSearching,
+        searchResults = searchResults,
+        searchErrorMessage = searchErrorMessage,
+        isNearbyPoiLoading = isNearbyPoiLoading,
+        nearbyPoiErrorMessage = nearbyPoiErrorMessage,
+        nearbyPoiItems = nearbyPoiItems.map {
+            SearchDockPoiViewItem(
+                id = it.id,
+                title = it.title,
+                subtitle = it.subtitle,
+                kindLabel = it.kindLabel,
+                distanceLabel = it.distanceMeters.toDistanceLabel()
+            )
+        }
+    )
 }
 
 data class MapTapAirportItem(

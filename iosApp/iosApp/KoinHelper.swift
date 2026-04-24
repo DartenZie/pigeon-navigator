@@ -30,3 +30,11 @@ class TerrainWarningHelper {
         return KoinHelper().getTerrainWarningHandle()
     }
 }
+
+/// Resolves shared search dock handles for Swift-side consumers.
+class SearchDockHelper {
+    /// Creates a new `SearchDockHandle` from the shared dependency graph.
+    static func resolve() -> SearchDockHandle {
+        return KoinHelper().getSearchDockHandle()
+    }
+}

@@ -37,6 +37,7 @@ kotlin {
             implementation(projects.data.aviationData)
             implementation(projects.data.terrainData)
             implementation(projects.feature.searchFeature)
+            implementation(projects.feature.searchDockFeature)
             implementation(projects.feature.terrainWarningFeature)
         }
         androidMain.dependencies {

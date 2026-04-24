@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var hudSize: HUDSize = .bar
     @StateObject private var mapTapLookup = MapTapLookupViewModelWrapper()
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
+    @StateObject private var dock = SearchDockViewModelWrapper()
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
@@ -50,9 +51,10 @@ struct ContentView: View {
                                 latitude: tapCoordinate.latitude,
                                 longitude: tapCoordinate.longitude
                             )
-                            if hudSize != .bar {
+                            dock.onMapSelectionChanged(true)
+                            if hudSize == .bar {
                                 withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
-                                    hudSize = .bar
+                                    hudSize = .half
                                 }
                             }
                         }
@@ -86,13 +88,21 @@ struct ContentView: View {
                             speedMetersPerSecond: Double(loc.speedMetersPerSecond),
                             bearingDegrees: Double(loc.bearingDegrees)
                         )
+                        dock.onUserLocationChanged(
+                            latitude: loc.latitude,
+                            longitude: loc.longitude
+                        )
                     }
                 }
                 .onDisappear {
                     observer.stop()
                 }
                 
-                HUDSearchBar(hudSize: $hudSize)
+                HUDSearchBar(
+                    hudSize: $hudSize,
+                    dock: dock,
+                    mapTapLookup: mapTapLookup
+                )
                     .padding(.horizontal, hudSize == .full ? 0 : 16)
                     .zIndex(2)
                     .animation(.spring(response: 0.44, dampingFraction: 0.76), value: hudSize)

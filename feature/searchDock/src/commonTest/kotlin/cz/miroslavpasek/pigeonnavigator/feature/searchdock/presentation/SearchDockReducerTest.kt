@@ -2,6 +2,7 @@ package cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SearchDockReducerTest {
 
@@ -20,10 +21,23 @@ class SearchDockReducerTest {
     }
 
     @Test
-    fun mapTapRouteAppearsWhenSelectionExists() {
+    fun mapTapRouteAlwaysAvailable() {
         val next = reducer.reduce(SearchDockState(), SearchDockIntent.MapSelectionChanged(hasSelection = true))
 
-        assertEquals(SearchDockRoute.MapPointDetails, next.activeRoute)
-        assertEquals(true, next.availableRoutes.contains(SearchDockRoute.MapPointDetails))
+        assertTrue(next.availableRoutes.contains(SearchDockRoute.MapTap))
+    }
+
+    @Test
+    fun mapSelectionDoesNotOverrideDefaultRoute() {
+        val next = reducer.reduce(SearchDockState(), SearchDockIntent.MapSelectionChanged(hasSelection = true))
+
+        assertEquals(SearchDockRoute.Nearby, next.activeRoute)
+    }
+
+    @Test
+    fun searchQuerySelectsSearchRoute() {
+        val next = reducer.reduce(SearchDockState(), SearchDockIntent.SearchQueryChanged("prg"))
+
+        assertEquals(SearchDockRoute.Search, next.activeRoute)
     }
 }
