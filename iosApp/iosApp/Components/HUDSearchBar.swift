@@ -51,10 +51,14 @@ struct HUDSearchBar: View {
 
     private var size: HUDSize { hudSize }
     @GestureState private var dragOffset: CGFloat = 0
+    @FocusState private var isSearchFocused: Bool
+    @State private var pendingSearchWorkItem: DispatchWorkItem? = nil
     private let handleTopPadding: CGFloat = 4
     private let handleWidth: CGFloat = 36
     private let handleHeight: CGFloat = 5
     private let searchRowHeight: CGFloat = 48
+    private let minimumSearchQueryLength = 2
+    private let searchDebounceDelay: TimeInterval = 0.35
 
     var body: some View {
         GeometryReader { geo in
@@ -85,6 +89,21 @@ struct HUDSearchBar: View {
         }
         .onChange(of: size.isExpanded) { (expanded: Bool) in
             dock.onExpandedChanged(expanded)
+        }
+        .onChange(of: size) { (newSize: HUDSize) in
+            if newSize != .full {
+                isSearchFocused = false
+            }
+        }
+        .onChange(of: isSearchFocused) { (focused: Bool) in
+            if focused {
+                dock.selectRoute(.search)
+            } else {
+                cancelPendingSearch()
+            }
+        }
+        .onDisappear {
+            cancelPendingSearch()
         }
     }
 
@@ -119,27 +138,34 @@ struct HUDSearchBar: View {
                 .padding(.horizontal, 2)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
+                .focused($isSearchFocused)
+                .allowsHitTesting(size == .full)
                 .onSubmit {
                     dock.submitSearch()
-                    if size == .bar {
-                        withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
-                            hudSize = .half
-                        }
-                    }
                 }
                 .onChange(of: dock.query) { (newQuery: String) in
                     dock.onQueryChange(newQuery)
+                    cancelPendingSearch()
 
                     let trimmed = newQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !trimmed.isEmpty {
-                        if size == .bar {
-                            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
-                                hudSize = .half
-                            }
-                        }
-                    } else {
+                    if trimmed.isEmpty {
                         dock.clearSearch()
+                        if isSearchFocused {
+                            dock.selectRoute(.search)
+                        }
+                        return
                     }
+
+                    guard isSearchFocused else { return }
+
+                    dock.selectRoute(.search)
+                    guard trimmed.count >= minimumSearchQueryLength else { return }
+
+                    let workItem = DispatchWorkItem {
+                        dock.submitSearch()
+                    }
+                    pendingSearchWorkItem = workItem
+                    DispatchQueue.main.asyncAfter(deadline: .now() + searchDebounceDelay, execute: workItem)
                 }
 
             Spacer()
@@ -155,10 +181,20 @@ struct HUDSearchBar: View {
         .offset(y: size == .bar ? 0 : 6)
         .contentShape(Rectangle())
         .onTapGesture {
+            guard size != .full else { return }
+
             withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
-                hudSize = (size == .bar) ? .half : size
+                hudSize = .full
+            }
+            DispatchQueue.main.async {
+                isSearchFocused = true
             }
         }
+    }
+
+    private func cancelPendingSearch() {
+        pendingSearchWorkItem?.cancel()
+        pendingSearchWorkItem = nil
     }
 
     private var resultsContent: some View {

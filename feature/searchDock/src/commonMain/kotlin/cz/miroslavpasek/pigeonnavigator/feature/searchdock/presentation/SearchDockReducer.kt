@@ -12,12 +12,19 @@ class SearchDockReducer(
             is SearchDockIntent.RoutePlanningChanged -> state.copy(isRoutePlanning = intent.planning)
             is SearchDockIntent.MapSelectionChanged -> state.copy(hasMapSelection = intent.hasSelection)
             is SearchDockIntent.UserLocationChanged -> state
-            is SearchDockIntent.SearchQueryChanged -> state.copy(
-                searchQuery = intent.query,
-                searchErrorMessage = null,
-                searchResults = if (intent.query.isBlank()) emptyList() else state.searchResults,
-                selectedRouteOverride = if (intent.query.isBlank()) null else state.selectedRouteOverride
-            )
+            is SearchDockIntent.SearchQueryChanged -> {
+                val trimmedQuery = intent.query.trim()
+                state.copy(
+                    searchQuery = intent.query,
+                    searchErrorMessage = null,
+                    searchResults = if (trimmedQuery.length < MIN_SEARCH_QUERY_LENGTH) {
+                        emptyList()
+                    } else {
+                        state.searchResults
+                    },
+                    selectedRouteOverride = if (trimmedQuery.isEmpty()) null else state.selectedRouteOverride
+                )
+            }
 
             SearchDockIntent.SubmitSearch -> state.copy(
                 isExpanded = true,
@@ -81,5 +88,9 @@ class SearchDockReducer(
 
         is Failure.Validation -> message
         Failure.Unexpected -> "Unexpected error"
+    }
+
+    private companion object {
+        const val MIN_SEARCH_QUERY_LENGTH = 2
     }
 }

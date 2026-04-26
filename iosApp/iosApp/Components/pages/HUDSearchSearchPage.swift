@@ -5,18 +5,6 @@ struct HUDSearchSearchPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Button("Find") {
-                    dock.submitSearch()
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button("Clear") {
-                    dock.clearSearch()
-                }
-                .buttonStyle(.bordered)
-            }
-
             if dock.isSearching {
                 ProgressView()
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -30,10 +18,12 @@ struct HUDSearchSearchPage: View {
             }
 
             if dock.results.isEmpty {
-                Text("No search results")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if dock.query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !dock.isSearching {
+                    Text("No search results")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             } else {
                 LazyVStack(spacing: 8) {
                     ForEach(dock.results, id: \.self) { item in

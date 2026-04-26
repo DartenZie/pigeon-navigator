@@ -183,6 +183,33 @@ WHERE package_id = ?
   AND bbox_min_lon <= ?
   AND bbox_max_lon >= ?;
 
+searchAirports:
+SELECT *
+FROM airport
+WHERE package_id = ?
+  AND (airport_id LIKE '%' || ? || '%' COLLATE NOCASE
+    OR name LIKE '%' || ? || '%' COLLATE NOCASE)
+ORDER BY airport_id ASC
+LIMIT ?;
+
+searchNavaids:
+SELECT *
+FROM navaid
+WHERE package_id = ?
+  AND (navaid_id LIKE '%' || ? || '%' COLLATE NOCASE
+    OR name LIKE '%' || ? || '%' COLLATE NOCASE)
+ORDER BY navaid_id ASC, name ASC
+LIMIT ?;
+
+searchAirspaces:
+SELECT *
+FROM airspace
+WHERE package_id = ?
+  AND (airspace_id LIKE '%' || ? || '%' COLLATE NOCASE
+    OR name LIKE '%' || ? || '%' COLLATE NOCASE)
+ORDER BY airspace_id ASC, name ASC
+LIMIT ?;
+
 selectAirspacePoints:
 SELECT *
 FROM airspace_point
