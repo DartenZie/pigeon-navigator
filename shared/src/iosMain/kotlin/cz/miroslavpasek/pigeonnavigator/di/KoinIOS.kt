@@ -7,6 +7,9 @@ import cz.miroslavpasek.pigeonnavigator.data.aviation.AviationPackageBootstrappe
 import cz.miroslavpasek.pigeonnavigator.data.aviation.di.aviationDataModule
 import cz.miroslavpasek.pigeonnavigator.data.search.di.searchDataModule
 import cz.miroslavpasek.pigeonnavigator.data.terrain.di.terrainDataModule
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.GeoPoint
+import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
 import cz.miroslavpasek.pigeonnavigator.feature.search.api.SearchStore
@@ -343,7 +346,22 @@ data class SearchDockPoiViewItem(
     val title: String,
     val subtitle: String,
     val kindLabel: String,
-    val distanceLabel: String
+    val distanceLabel: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
+data class SearchDockResultViewItem(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val kindLabel: String,
+    val latitude: Double,
+    val longitude: Double,
+    val minLatitude: Double? = null,
+    val minLongitude: Double? = null,
+    val maxLatitude: Double? = null,
+    val maxLongitude: Double? = null
 )
 
 data class SearchDockViewState(
@@ -354,7 +372,7 @@ data class SearchDockViewState(
     val hasMapSelection: Boolean = false,
     val searchQuery: String = "",
     val isSearching: Boolean = false,
-    val searchResults: List<String> = emptyList(),
+    val searchResults: List<SearchDockResultViewItem> = emptyList(),
     val searchErrorMessage: String? = null,
     val isNearbyPoiLoading: Boolean = false,
     val nearbyPoiErrorMessage: String? = null,
@@ -385,7 +403,7 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
         hasMapSelection = hasMapSelection,
         searchQuery = searchQuery,
         isSearching = isSearching,
-        searchResults = searchResults,
+        searchResults = searchResults.map { it.toViewItem() },
         searchErrorMessage = searchErrorMessage,
         isNearbyPoiLoading = isNearbyPoiLoading,
         nearbyPoiErrorMessage = nearbyPoiErrorMessage,
@@ -395,7 +413,9 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
                 title = it.title,
                 subtitle = it.subtitle,
                 kindLabel = it.kindLabel,
-                distanceLabel = it.distanceMeters.toDistanceLabel()
+                distanceLabel = it.distanceMeters.toDistanceLabel(),
+                latitude = it.latitude,
+                longitude = it.longitude
             )
         }
     )
@@ -404,13 +424,21 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
 data class MapTapAirportItem(
     val id: String,
     val name: String,
-    val distanceLabel: String
+    val distanceLabel: String,
+    val latitude: Double,
+    val longitude: Double
 )
 
 data class MapTapAirspaceItem(
     val id: String,
     val name: String,
-    val detail: String
+    val detail: String,
+    val latitude: Double,
+    val longitude: Double,
+    val minLatitude: Double,
+    val minLongitude: Double,
+    val maxLatitude: Double,
+    val maxLongitude: Double
 )
 
 data class MapTapLookupViewState(
@@ -442,16 +470,86 @@ private fun MapTapLookupState.toViewState(): MapTapLookupViewState {
             MapTapAirportItem(
                 id = it.airport.id,
                 name = it.airport.name,
-                distanceLabel = it.distanceMeters.toDistanceLabel()
+                distanceLabel = it.distanceMeters.toDistanceLabel(),
+                latitude = it.airport.latitude,
+                longitude = it.airport.longitude
             )
         },
         airspaces = airspaces.map {
+            val bounds = it.points.toBounds()
+                ?: GeoBounds(
+                    minLatitude = 0.0,
+                    minLongitude = 0.0,
+                    maxLatitude = 0.0,
+                    maxLongitude = 0.0
+                )
             MapTapAirspaceItem(
                 id = it.id,
                 name = it.name,
-                detail = "${it.kind} · ${it.toAltitudeBand()}"
+                detail = "${it.kind} · ${it.toAltitudeBand()}",
+                latitude = bounds.center.latitude,
+                longitude = bounds.center.longitude,
+                minLatitude = bounds.minLatitude,
+                minLongitude = bounds.minLongitude,
+                maxLatitude = bounds.maxLatitude,
+                maxLongitude = bounds.maxLongitude
             )
         }
+    )
+}
+
+private fun SearchResult.toViewItem(): SearchDockResultViewItem {
+    return when (this) {
+        is SearchResult.Airport -> SearchDockResultViewItem(
+            id = id,
+            title = title,
+            subtitle = subtitle,
+            kindLabel = kindLabel,
+            latitude = latitude,
+            longitude = longitude
+        )
+
+        is SearchResult.Navaid -> SearchDockResultViewItem(
+            id = id,
+            title = title,
+            subtitle = subtitle,
+            kindLabel = kindLabel,
+            latitude = latitude,
+            longitude = longitude
+        )
+
+        is SearchResult.Airspace -> SearchDockResultViewItem(
+            id = id,
+            title = title,
+            subtitle = subtitle,
+            kindLabel = kindLabel,
+            latitude = centerLatitude,
+            longitude = centerLongitude,
+            minLatitude = bounds.minLatitude,
+            minLongitude = bounds.minLongitude,
+            maxLatitude = bounds.maxLatitude,
+            maxLongitude = bounds.maxLongitude
+        )
+    }
+}
+
+private fun List<GeoPoint>.toBounds(): GeoBounds? {
+    if (isEmpty()) return null
+    var minLatitude = first().latitude
+    var maxLatitude = first().latitude
+    var minLongitude = first().longitude
+    var maxLongitude = first().longitude
+    for (point in drop(1)) {
+        minLatitude = minOf(minLatitude, point.latitude)
+        maxLatitude = maxOf(maxLatitude, point.latitude)
+        minLongitude = minOf(minLongitude, point.longitude)
+        maxLongitude = maxOf(maxLongitude, point.longitude)
+    }
+    return GeoBounds(
+        minLatitude = minLatitude,
+        minLongitude = minLongitude,
+        maxLatitude = maxLatitude,
+        maxLongitude = maxLongitude
     )
 }
 

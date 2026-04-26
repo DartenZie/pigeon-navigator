@@ -1,6 +1,7 @@
 package cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation
 
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 
 sealed interface SearchDockIntent {
     data class ExpandedChanged(val expanded: Boolean) : SearchDockIntent
@@ -16,7 +17,7 @@ sealed interface SearchDockIntent {
     data class SearchQueryChanged(val query: String) : SearchDockIntent
     data object SubmitSearch : SearchDockIntent
     data object SearchCleared : SearchDockIntent
-    data class SearchSucceeded(val results: List<String>) : SearchDockIntent
+    data class SearchSucceeded(val results: List<SearchResult>) : SearchDockIntent
     data class SearchFailed(val failure: Failure) : SearchDockIntent
 
     data object NearbyPoiLoadRequested : SearchDockIntent

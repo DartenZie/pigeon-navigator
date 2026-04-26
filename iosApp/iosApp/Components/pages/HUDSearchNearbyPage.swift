@@ -3,6 +3,8 @@ import Shared
 
 struct HUDSearchNearbyPage: View {
     @ObservedObject var dock: SearchDockViewModelWrapper
+    var onPoiTap: (SearchDockPoiViewItem) -> Void = { _ in }
+    var onAddToRouteTap: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -45,7 +47,14 @@ struct HUDSearchNearbyPage: View {
                             Text(item.distanceLabel)
                                 .font(.system(size: 12))
                                 .foregroundStyle(.secondary)
+                            Button(action: onAddToRouteTap) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture { onPoiTap(item) }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .background(Color.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))

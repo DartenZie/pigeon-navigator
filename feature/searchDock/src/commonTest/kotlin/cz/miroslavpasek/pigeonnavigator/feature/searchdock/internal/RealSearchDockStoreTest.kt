@@ -14,6 +14,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.aviation.QueryNearbyAirportsUseCa
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.QueryNearbyNavaidsUseCase
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchRepository
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchUseCase
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockReducer
@@ -36,7 +37,25 @@ class RealSearchDockStoreTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         val store = createStore(
             dispatcher = dispatcher,
-            searchRepository = FakeSearchRepository(results = listOf("Prague", "Pribram"), shouldFail = false)
+            searchRepository = FakeSearchRepository(
+                results = listOf(
+                    SearchResult.Airport(
+                        id = "airport:LKPR",
+                        title = "LKPR",
+                        subtitle = "Prague",
+                        latitude = 50.1008,
+                        longitude = 14.26
+                    ),
+                    SearchResult.Navaid(
+                        id = "navaid:PRG",
+                        title = "PRG",
+                        subtitle = "Prague VOR · VOR",
+                        latitude = 50.0,
+                        longitude = 14.0
+                    )
+                ),
+                shouldFail = false
+            )
         )
 
         store.send(SearchDockIntent.ExpandedChanged(expanded = true))
@@ -46,7 +65,7 @@ class RealSearchDockStoreTest {
 
         val state = store.state.value
         assertEquals(SearchDockRoute.Search, state.activeRoute)
-        assertEquals(listOf("Prague", "Pribram"), state.searchResults)
+        assertEquals(listOf("LKPR", "PRG"), state.searchResults.map { it.title })
         assertEquals(false, state.isSearching)
 
         store.close()
@@ -97,10 +116,10 @@ private class TestDispatcherProvider(
 }
 
 private class FakeSearchRepository(
-    private val results: List<String>,
+    private val results: List<SearchResult>,
     private val shouldFail: Boolean
 ) : SearchRepository {
-    override suspend fun search(query: String): AppResult<List<String>, Failure> {
+    override suspend fun search(query: String): AppResult<List<SearchResult>, Failure> {
         if (shouldFail) {
             return AppResult.Failure(Failure.DataUnavailable)
         }

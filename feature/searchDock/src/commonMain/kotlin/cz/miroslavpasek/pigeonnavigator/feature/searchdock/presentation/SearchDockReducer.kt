@@ -7,7 +7,18 @@ class SearchDockReducer(
 ) {
     fun reduce(state: SearchDockState, intent: SearchDockIntent): SearchDockState {
         val next = when (intent) {
-            is SearchDockIntent.ExpandedChanged -> state.copy(isExpanded = intent.expanded)
+            is SearchDockIntent.ExpandedChanged -> state.copy(
+                isExpanded = intent.expanded,
+                searchQuery = if (intent.expanded) state.searchQuery else "",
+                isSearching = if (intent.expanded) state.isSearching else false,
+                searchResults = if (intent.expanded) state.searchResults else emptyList(),
+                searchErrorMessage = if (intent.expanded) state.searchErrorMessage else null,
+                selectedRouteOverride = if (intent.expanded && state.hasNoSpecialState()) {
+                    null
+                } else {
+                    state.selectedRouteOverride
+                }
+            )
             is SearchDockIntent.RouteSelected -> state.copy(selectedRouteOverride = intent.route)
             is SearchDockIntent.RoutePlanningChanged -> state.copy(isRoutePlanning = intent.planning)
             is SearchDockIntent.MapSelectionChanged -> state.copy(hasMapSelection = intent.hasSelection)
@@ -88,6 +99,13 @@ class SearchDockReducer(
 
         is Failure.Validation -> message
         Failure.Unexpected -> "Unexpected error"
+    }
+
+    private fun SearchDockState.hasNoSpecialState(): Boolean {
+        return !isRoutePlanning &&
+            !hasMapSelection &&
+            searchQuery.isBlank() &&
+            searchResults.isEmpty()
     }
 
     private companion object {

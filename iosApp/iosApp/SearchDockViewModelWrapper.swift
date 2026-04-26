@@ -49,7 +49,7 @@ final class SearchDockViewModelWrapper: ObservableObject {
     @Published var hasMapSelection: Bool = false
     @Published var query: String = ""
     @Published var isSearching: Bool = false
-    @Published var results: [String] = []
+    @Published var results: [SearchDockResultViewItem] = []
     @Published var errorMessage: String? = nil
     @Published var isNearbyPoiLoading: Bool = false
     @Published var nearbyPoiErrorMessage: String? = nil

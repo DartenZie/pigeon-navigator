@@ -177,7 +177,9 @@ internal class RealSearchDockStore(
             title = airport.id,
             subtitle = airport.name,
             kindLabel = "Airport",
-            distanceMeters = distanceMeters
+            distanceMeters = distanceMeters,
+            latitude = airport.latitude,
+            longitude = airport.longitude
         )
     }
 
@@ -187,7 +189,9 @@ internal class RealSearchDockStore(
             title = navaid.id,
             subtitle = "${navaid.name} · ${navaid.detail}",
             kindLabel = "Navaid",
-            distanceMeters = distanceMeters
+            distanceMeters = distanceMeters,
+            latitude = navaid.latitude,
+            longitude = navaid.longitude
         )
     }
 

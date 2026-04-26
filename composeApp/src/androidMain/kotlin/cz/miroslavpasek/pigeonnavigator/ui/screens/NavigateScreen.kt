@@ -21,6 +21,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
 import cz.miroslavpasek.pigeonnavigator.map.MapStyleProvider
 import kotlinx.coroutines.delay
 import org.maplibre.android.style.expressions.Expression.eq
@@ -47,9 +48,11 @@ import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
+import org.maplibre.android.geometry.LatLngBounds
 
 private const val DEFAULT_ZOOM = 10.5
 private const val RECENTER_DISTANCE_METERS = 12f
@@ -82,6 +85,7 @@ private const val USER_GUIDANCE_CONE_HALF_ANGLE_DEGREES = 25.0
 private const val USER_GUIDANCE_MAX_MINUTE_MARKS = 12
 private const val USER_GUIDANCE_TICK_MARK_LENGTH_METERS = 180.0
 private const val EARTH_RADIUS_METERS = 6_371_000.0
+private const val AIRSPACE_FIT_PADDING_PX = 80
 private val PRAGUE = LatLng(50.0755, 14.4378)
 
 @Composable
@@ -95,7 +99,9 @@ fun NavigateScreen(
     onMapTap: (latitude: Double, longitude: Double) -> Unit = { _, _ -> },
     onAwayFromUserLocationChange: (Boolean) -> Unit = {},
     resetNorthToken: Int = 0,
-    recenterOnUserToken: Int = 0
+    recenterOnUserToken: Int = 0,
+    mapFocus: SearchDockMapFocus? = null,
+    mapFocusToken: Int = 0
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -127,6 +133,7 @@ fun NavigateScreen(
     var didAttachMapTapListener by remember { mutableStateOf(false) }
     var lastResetNorthToken by remember { mutableIntStateOf(resetNorthToken) }
     var lastRecenterOnUserToken by remember { mutableIntStateOf(recenterOnUserToken) }
+    var lastMapFocusToken by remember { mutableIntStateOf(mapFocusToken) }
     var latestLocation by remember { mutableStateOf(location) }
     var isTrackingUserLocation by remember { mutableStateOf(followUser) }
     var didCenterOnFirstGpsFix by remember { mutableStateOf(false) }
@@ -266,13 +273,48 @@ fun NavigateScreen(
                     }
                 }
 
-                onAwayFromUserLocationChange(
-                    shouldShowRecenter(
-                        mapTarget = map.cameraPosition.target,
-                        userLocation = location,
-                        isTrackingUserLocation = isTrackingUserLocation
+                var recenterEvaluationTarget = map.cameraPosition.target
+
+                val didHandleMapFocus = lastMapFocusToken != mapFocusToken
+                if (didHandleMapFocus) {
+                    lastMapFocusToken = mapFocusToken
+                    isTrackingUserLocation = false
+                    mapFocus?.let { focus ->
+                        when (focus) {
+                            is SearchDockMapFocus.Point -> {
+                                recenterEvaluationTarget = LatLng(focus.latitude, focus.longitude)
+                                val newPosition = CameraPosition.Builder()
+                                    .target(recenterEvaluationTarget)
+                                    .zoom(DEFAULT_ZOOM)
+                                    .tilt(map.cameraPosition.tilt)
+                                    .bearing(map.cameraPosition.bearing)
+                                    .build()
+                                map.animateCamera(CameraUpdateFactory.newCameraPosition(newPosition))
+                            }
+
+                            is SearchDockMapFocus.Bounds -> {
+                                recenterEvaluationTarget = LatLng(focus.centerLatitude, focus.centerLongitude)
+                                val bounds = LatLngBounds.Builder()
+                                    .include(LatLng(focus.bounds.minLatitude, focus.bounds.minLongitude))
+                                    .include(LatLng(focus.bounds.maxLatitude, focus.bounds.maxLongitude))
+                                    .build()
+                                map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, AIRSPACE_FIT_PADDING_PX))
+                            }
+                        }
+                    }
+                }
+
+                if (didHandleMapFocus) {
+                    onAwayFromUserLocationChange(true)
+                } else {
+                    onAwayFromUserLocationChange(
+                        shouldShowRecenter(
+                            mapTarget = recenterEvaluationTarget,
+                            userLocation = location,
+                            isTrackingUserLocation = isTrackingUserLocation
+                        )
                     )
-                )
+                }
 
                 if (followUser && location != null && map.style != null) {
                     if (!didCenterOnFirstGpsFix) {

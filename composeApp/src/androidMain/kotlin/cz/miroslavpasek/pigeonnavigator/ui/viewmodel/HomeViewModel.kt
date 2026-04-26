@@ -88,6 +88,10 @@ class HomeViewModel(
         searchDockStore.send(SearchDockIntent.RouteSelected(route = route))
     }
 
+    fun collapseSearchDock() {
+        collapseSearchDockIfExpanded()
+    }
+
     fun refreshLocation() {
         locationJob?.cancel()
         startLocationUpdates()

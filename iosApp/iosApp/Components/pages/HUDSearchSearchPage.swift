@@ -1,7 +1,10 @@
 import SwiftUI
+import Shared
 
 struct HUDSearchSearchPage: View {
     @ObservedObject var dock: SearchDockViewModelWrapper
+    var onResultTap: (SearchDockResultViewItem) -> Void = { _ in }
+    var onAddToRouteTap: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -26,15 +29,28 @@ struct HUDSearchSearchPage: View {
                 }
             } else {
                 LazyVStack(spacing: 8) {
-                    ForEach(dock.results, id: \.self) { item in
+                    ForEach(dock.results, id: \.id) { item in
                         HStack(spacing: 8) {
                             Image(systemName: "mappin")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                            Text(item)
-                                .font(.system(size: 14, weight: .medium))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(item.title)
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("\(item.kindLabel) · \(item.subtitle)")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
                             Spacer()
+                            Button(action: onAddToRouteTap) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture { onResultTap(item) }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .background(Color.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))

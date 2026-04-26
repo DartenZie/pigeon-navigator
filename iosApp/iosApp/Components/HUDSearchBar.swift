@@ -48,6 +48,11 @@ struct HUDSearchBar: View {
     @Binding var hudSize: HUDSize
     @ObservedObject var dock: SearchDockViewModelWrapper
     @ObservedObject var mapTapLookup: MapTapLookupViewModelWrapper
+    var onNearbyPoiTap: (SearchDockPoiViewItem) -> Void = { _ in }
+    var onSearchResultTap: (SearchDockResultViewItem) -> Void = { _ in }
+    var onMapTapAirportTap: (MapTapAirportItem) -> Void = { _ in }
+    var onMapTapAirspaceTap: (MapTapAirspaceItem) -> Void = { _ in }
+    var onAddToRouteTap: () -> Void = {}
 
     private var size: HUDSize { hudSize }
     @GestureState private var dragOffset: CGFloat = 0
@@ -211,13 +216,26 @@ struct HUDSearchBar: View {
     private var routeContent: some View {
         switch dock.activeRoute {
         case .search:
-            HUDSearchSearchPage(dock: dock)
+            HUDSearchSearchPage(
+                dock: dock,
+                onResultTap: onSearchResultTap,
+                onAddToRouteTap: onAddToRouteTap
+            )
         case .routePlanner:
             HUDSearchRoutePlannerPage()
         case .mapTap:
-            HUDSearchMapTapPage(mapTapLookup: mapTapLookup)
+            HUDSearchMapTapPage(
+                mapTapLookup: mapTapLookup,
+                onAirportTap: onMapTapAirportTap,
+                onAirspaceTap: onMapTapAirspaceTap,
+                onAddToRouteTap: onAddToRouteTap
+            )
         case .nearby:
-            HUDSearchNearbyPage(dock: dock)
+            HUDSearchNearbyPage(
+                dock: dock,
+                onPoiTap: onNearbyPoiTap,
+                onAddToRouteTap: onAddToRouteTap
+            )
         }
     }
 

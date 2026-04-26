@@ -25,6 +25,8 @@ struct NavigateView: UIViewRepresentable {
     var onAwayFromUserLocationChange: (Bool) -> Void = { _ in }
     var resetNorthToken: Int = 0
     var recenterOnUserToken: Int = 0
+    var mapFocus: MapCameraFocus? = nil
+    var mapFocusToken: Int = 0
     private let recenterDistanceMeters: CLLocationDistance = 12
     private let awayFromUserDistanceMeters: CLLocationDistance = 24
     private let userLocationDotSourceId = "user-location-dot-source"
@@ -220,6 +222,27 @@ struct NavigateView: UIViewRepresentable {
                 context.coordinator.setAwayFromUserLocation(false)
             }
         }
+
+        if context.coordinator.lastMapFocusToken != mapFocusToken {
+            context.coordinator.lastMapFocusToken = mapFocusToken
+            context.coordinator.isTrackingUserLocation = false
+            if let mapFocus {
+                if let bounds = mapFocus.bounds {
+                    let coordinateBounds = MLNCoordinateBounds(
+                        sw: bounds.southWest,
+                        ne: bounds.northEast
+                    )
+                    mapView.setVisibleCoordinateBounds(
+                        coordinateBounds,
+                        edgePadding: UIEdgeInsets(top: 80, left: 48, bottom: 120, right: 48),
+                        animated: true
+                    )
+                } else {
+                    mapView.setCenter(mapFocus.center, zoomLevel: zoomLevel, animated: true)
+                }
+                context.coordinator.setAwayFromUserLocation(true)
+            }
+        }
         
         guard followUser, let loc = location else {
             context.coordinator.evaluateAwayFromUserLocation(mapView)
@@ -281,6 +304,7 @@ struct NavigateView: UIViewRepresentable {
         let awayFromUserDistanceMeters: CLLocationDistance
         var lastResetNorthToken: Int = 0
         var lastRecenterOnUserToken: Int = 0
+        var lastMapFocusToken: Int = 0
         private var lastForwardedMapTap: (coordinate: CLLocationCoordinate2D, timestamp: TimeInterval)?
 
         init(
@@ -352,12 +376,21 @@ struct NavigateView: UIViewRepresentable {
         }
 
         func evaluateAwayFromUserLocation(_ mapView: MLNMapView) {
-            guard let userLocation = lastKnownUserLocation else {
+            evaluateAwayFromUserLocation(
+                center: mapView.centerCoordinate,
+                userLocation: lastKnownUserLocation
+            )
+        }
+
+        func evaluateAwayFromUserLocation(
+            center: CLLocationCoordinate2D,
+            userLocation: CLLocationCoordinate2D?
+        ) {
+            guard let userLocation else {
                 setAwayFromUserLocation(false)
                 return
             }
 
-            let center = mapView.centerCoordinate
             let centerLocation = CLLocation(latitude: center.latitude, longitude: center.longitude)
             let gpsLocation = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
             let isAway = centerLocation.distance(from: gpsLocation) >= awayFromUserDistanceMeters

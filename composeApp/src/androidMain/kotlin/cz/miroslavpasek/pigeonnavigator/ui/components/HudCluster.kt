@@ -24,6 +24,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlin.math.min
@@ -50,6 +54,11 @@ fun HudCluster(
     onSearchDockClearSearch: () -> Unit,
     onSearchDockRoutePlanningChanged: (Boolean) -> Unit,
     onSearchDockRouteSelected: (SearchDockRoute) -> Unit,
+    onNearbyPoiSelected: (SearchDockPoiItem) -> Unit,
+    onSearchResultSelected: (SearchResult) -> Unit,
+    onMapTapAirportSelected: (NearbyAirport) -> Unit,
+    onMapTapAirspaceSelected: (Airspace) -> Unit,
+    onAddToRouteClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val normalizedDirection = normalizeDirection(mapDirection)
@@ -118,6 +127,11 @@ fun HudCluster(
             onClearSearch = onSearchDockClearSearch,
             onRoutePlanningChanged = onSearchDockRoutePlanningChanged,
             onRouteSelected = onSearchDockRouteSelected,
+            onNearbyPoiSelected = onNearbyPoiSelected,
+            onSearchResultSelected = onSearchResultSelected,
+            onMapTapAirportSelected = onMapTapAirportSelected,
+            onMapTapAirspaceSelected = onMapTapAirspaceSelected,
+            onAddToRouteClicked = onAddToRouteClicked,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)

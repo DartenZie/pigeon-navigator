@@ -4,7 +4,9 @@ import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.core.util.result.appResultOf
 import cz.miroslavpasek.pigeonnavigator.data.aviation.db.AviationDatabase
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
+import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchRepository
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 
 /**
  * Searches aviation reference data from the active installed package.
@@ -14,7 +16,7 @@ class AviationSearchRepositoryImpl(
     private val limit: Long = SEARCH_RESULT_LIMIT
 ) : SearchRepository {
 
-    override suspend fun search(query: String): AppResult<List<String>, Failure> =
+    override suspend fun search(query: String): AppResult<List<SearchResult>, Failure> =
         appResultOf(
             block = {
                 val normalizedQuery = query.trim()
@@ -32,7 +34,13 @@ class AviationSearchRepositoryImpl(
                     value__ = normalizedQuery,
                     value___ = limit
                 ).executeAsList().map { row ->
-                    "${row.airport_id} · ${row.name} · Airport"
+                    SearchResult.Airport(
+                        id = "airport:${row.airport_id}",
+                        title = row.airport_id,
+                        subtitle = row.name,
+                        latitude = row.lat_deg,
+                        longitude = row.lon_deg
+                    )
                 }
 
                 val navaids = queries.searchNavaids(
@@ -41,7 +49,13 @@ class AviationSearchRepositoryImpl(
                     value__ = normalizedQuery,
                     value___ = limit
                 ).executeAsList().map { row ->
-                    "${row.navaid_id} · ${row.name} · ${row.kind}"
+                    SearchResult.Navaid(
+                        id = "navaid:${row.navaid_key}",
+                        title = row.navaid_id,
+                        subtitle = "${row.name} · ${row.kind}",
+                        latitude = row.lat_deg,
+                        longitude = row.lon_deg
+                    )
                 }
 
                 val airspaces = queries.searchAirspaces(
@@ -50,7 +64,20 @@ class AviationSearchRepositoryImpl(
                     value__ = normalizedQuery,
                     value___ = limit
                 ).executeAsList().map { row ->
-                    "${row.airspace_id} · ${row.name} · ${row.kind}"
+                    val bounds = GeoBounds(
+                        minLatitude = row.bbox_min_lat,
+                        minLongitude = row.bbox_min_lon,
+                        maxLatitude = row.bbox_max_lat,
+                        maxLongitude = row.bbox_max_lon
+                    )
+                    SearchResult.Airspace(
+                        id = "airspace:${row.airspace_id}",
+                        title = row.name.ifBlank { row.airspace_id },
+                        subtitle = row.kind,
+                        centerLatitude = bounds.center.latitude,
+                        centerLongitude = bounds.center.longitude,
+                        bounds = bounds
+                    )
                 }
 
                 (airports + navaids + airspaces).take(limit.toInt())

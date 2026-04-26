@@ -46,6 +46,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
+import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.toMapFocus
 import cz.miroslavpasek.pigeonnavigator.ui.components.HudCluster
 import cz.miroslavpasek.pigeonnavigator.ui.screens.NavigateScreen
 import cz.miroslavpasek.pigeonnavigator.ui.viewmodel.HomeViewModel
@@ -61,6 +65,8 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     var isAwayFromUserLocation by remember { mutableStateOf(false) }
     var resetNorthToken by remember { mutableIntStateOf(0) }
     var recenterOnUserToken by remember { mutableIntStateOf(0) }
+    var mapFocusToken by remember { mutableIntStateOf(0) }
+    var mapFocus by remember { mutableStateOf<SearchDockMapFocus?>(null) }
     var didAutoRequestLocationPermission by remember { mutableStateOf(false) }
     var didAskLocationPermission by remember { mutableStateOf(hasLocationPermission(context)) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -115,6 +121,12 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         ?.times(3.6f)
         ?.roundToInt()
         ?: 0
+    val focusMap = { focus: SearchDockMapFocus ->
+        mapFocus = focus
+        mapFocusToken += 1
+        isAwayFromUserLocation = true
+        vm.collapseSearchDock()
+    }
 
     MaterialTheme {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -133,6 +145,8 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                     onAwayFromUserLocationChange = { isAwayFromUserLocation = it },
                     resetNorthToken = resetNorthToken,
                     recenterOnUserToken = recenterOnUserToken,
+                    mapFocus = mapFocus,
+                    mapFocusToken = mapFocusToken,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -165,6 +179,24 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                     onSearchDockClearSearch = vm::onSearchDockClearSearch,
                     onSearchDockRoutePlanningChanged = vm::onSearchDockRoutePlanningChanged,
                     onSearchDockRouteSelected = vm::onSearchDockRouteSelected,
+                    onNearbyPoiSelected = { item ->
+                        focusMap(item.toMapFocus())
+                    },
+                    onSearchResultSelected = { result ->
+                        focusMap(result.toMapFocus())
+                    },
+                    onMapTapAirportSelected = { airport ->
+                        focusMap(
+                            SearchDockMapFocus.Point(
+                                latitude = airport.airport.latitude,
+                                longitude = airport.airport.longitude
+                            )
+                        )
+                    },
+                    onMapTapAirspaceSelected = { airspace ->
+                        focusMap(airspace.toMapFocus())
+                    },
+                    onAddToRouteClicked = {},
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(horizontal = 16.dp, vertical = 18.dp)
@@ -173,6 +205,41 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
             }
         }
     }
+}
+
+private fun Airspace.toMapFocus(): SearchDockMapFocus {
+    val bounds = points.toBounds()
+        ?: GeoBounds(
+            minLatitude = 0.0,
+            minLongitude = 0.0,
+            maxLatitude = 0.0,
+            maxLongitude = 0.0
+        )
+    return SearchDockMapFocus.Bounds(
+        centerLatitude = bounds.center.latitude,
+        centerLongitude = bounds.center.longitude,
+        bounds = bounds
+    )
+}
+
+private fun List<cz.miroslavpasek.pigeonnavigator.domain.aviation.GeoPoint>.toBounds(): GeoBounds? {
+    if (isEmpty()) return null
+    var minLatitude = first().latitude
+    var maxLatitude = first().latitude
+    var minLongitude = first().longitude
+    var maxLongitude = first().longitude
+    for (point in drop(1)) {
+        minLatitude = minOf(minLatitude, point.latitude)
+        maxLatitude = maxOf(maxLatitude, point.latitude)
+        minLongitude = minOf(minLongitude, point.longitude)
+        maxLongitude = maxOf(maxLongitude, point.longitude)
+    }
+    return GeoBounds(
+        minLatitude = minLatitude,
+        minLongitude = minLongitude,
+        maxLatitude = maxLatitude,
+        maxLongitude = maxLongitude
+    )
 }
 
 @Composable

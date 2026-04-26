@@ -1,7 +1,11 @@
 import SwiftUI
+import Shared
 
 struct HUDSearchMapTapPage: View {
     @ObservedObject var mapTapLookup: MapTapLookupViewModelWrapper
+    var onAirportTap: (MapTapAirportItem) -> Void = { _ in }
+    var onAirspaceTap: (MapTapAirspaceItem) -> Void = { _ in }
+    var onAddToRouteTap: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -56,7 +60,14 @@ struct HUDSearchMapTapPage: View {
                                 Text(airport.distanceLabel)
                                     .font(.system(size: 12))
                                     .foregroundStyle(.secondary)
+                                Button(action: onAddToRouteTap) {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture { onAirportTap(airport) }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
                             .background(Color.black.opacity(0.06), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -76,13 +87,23 @@ struct HUDSearchMapTapPage: View {
                 } else {
                     LazyVStack(spacing: 8) {
                         ForEach(mapTapLookup.airspaces, id: \.id) { airspace in
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(airspace.name)
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text(airspace.detail)
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(airspace.name)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(airspace.detail)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button(action: onAddToRouteTap) {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .buttonStyle(.plain)
                             }
+                            .contentShape(Rectangle())
+                            .onTapGesture { onAirspaceTap(airspace) }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)

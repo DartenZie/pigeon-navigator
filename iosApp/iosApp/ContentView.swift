@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var mapDirection: CLLocationDirection = 0
     @State private var resetNorthToken: Int = 0
     @State private var recenterOnUserToken: Int = 0
+    @State private var mapFocusToken: Int = 0
+    @State private var mapFocus: MapCameraFocus? = nil
     @State private var isAwayFromUserLocation = false
     @State private var locationStatus: GpsStatus? = nil
     @State private var hudSize: HUDSize = .bar
@@ -66,7 +68,9 @@ struct ContentView: View {
                         isAwayFromUserLocation = isAway
                     },
                     resetNorthToken: resetNorthToken,
-                    recenterOnUserToken: recenterOnUserToken
+                    recenterOnUserToken: recenterOnUserToken,
+                    mapFocus: mapFocus,
+                    mapFocusToken: mapFocusToken
                 )
                 .ignoresSafeArea()
                 .onAppear {
@@ -105,7 +109,33 @@ struct ContentView: View {
                 HUDSearchBar(
                     hudSize: $hudSize,
                     dock: dock,
-                    mapTapLookup: mapTapLookup
+                    mapTapLookup: mapTapLookup,
+                    onNearbyPoiTap: { item in
+                        focusMap(
+                            center: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude)
+                        )
+                    },
+                    onSearchResultTap: { item in
+                        focusMap(
+                            center: CLLocationCoordinate2D(latitude: item.latitude, longitude: item.longitude),
+                            bounds: boundsFromSearchResult(item)
+                        )
+                    },
+                    onMapTapAirportTap: { airport in
+                        focusMap(
+                            center: CLLocationCoordinate2D(latitude: airport.latitude, longitude: airport.longitude)
+                        )
+                    },
+                    onMapTapAirspaceTap: { airspace in
+                        focusMap(
+                            center: CLLocationCoordinate2D(latitude: airspace.latitude, longitude: airspace.longitude),
+                            bounds: MapCameraBounds(
+                                southWest: CLLocationCoordinate2D(latitude: airspace.minLatitude, longitude: airspace.minLongitude),
+                                northEast: CLLocationCoordinate2D(latitude: airspace.maxLatitude, longitude: airspace.maxLongitude)
+                            )
+                        )
+                    },
+                    onAddToRouteTap: {}
                 )
                     .padding(.horizontal, hudSize == .full ? 0 : 16)
                     .zIndex(2)
@@ -182,6 +212,32 @@ struct ContentView: View {
                 hudSize = .bar
             }
         }
+    }
+
+    private func focusMap(center: CLLocationCoordinate2D, bounds: MapCameraBounds? = nil) {
+        mapFocus = MapCameraFocus(center: center, bounds: bounds)
+        mapFocusToken += 1
+        isAwayFromUserLocation = true
+        dock.onExpandedChanged(false)
+        if hudSize != .bar {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                hudSize = .bar
+            }
+        }
+    }
+
+    private func boundsFromSearchResult(_ item: SearchDockResultViewItem) -> MapCameraBounds? {
+        guard let minLatitude = item.minLatitude?.doubleValue,
+              let minLongitude = item.minLongitude?.doubleValue,
+              let maxLatitude = item.maxLatitude?.doubleValue,
+              let maxLongitude = item.maxLongitude?.doubleValue else {
+            return nil
+        }
+
+        return MapCameraBounds(
+            southWest: CLLocationCoordinate2D(latitude: minLatitude, longitude: minLongitude),
+            northEast: CLLocationCoordinate2D(latitude: maxLatitude, longitude: maxLongitude)
+        )
     }
 }
 

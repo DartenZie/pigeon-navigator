@@ -20,12 +20,14 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -42,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
@@ -58,6 +61,11 @@ fun SearchDock(
     onClearSearch: () -> Unit,
     onRoutePlanningChanged: (Boolean) -> Unit,
     onRouteSelected: (SearchDockRoute) -> Unit,
+    onNearbyPoiSelected: (SearchDockPoiItem) -> Unit,
+    onSearchResultSelected: (SearchResult) -> Unit,
+    onMapTapAirportSelected: (NearbyAirport) -> Unit,
+    onMapTapAirspaceSelected: (Airspace) -> Unit,
+    onAddToRouteClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
@@ -142,6 +150,11 @@ fun SearchDock(
                     onClearSearch = onClearSearch,
                     onRoutePlanningChanged = onRoutePlanningChanged,
                     onRouteSelected = onRouteSelected,
+                    onNearbyPoiSelected = onNearbyPoiSelected,
+                    onSearchResultSelected = onSearchResultSelected,
+                    onMapTapAirportSelected = onMapTapAirportSelected,
+                    onMapTapAirspaceSelected = onMapTapAirspaceSelected,
+                    onAddToRouteClicked = onAddToRouteClicked,
                     modifier = Modifier
                         .fillMaxHeight()
                         .padding(horizontal = 10.dp)
@@ -160,6 +173,11 @@ private fun ExpandedDockContent(
     onClearSearch: () -> Unit,
     onRoutePlanningChanged: (Boolean) -> Unit,
     onRouteSelected: (SearchDockRoute) -> Unit,
+    onNearbyPoiSelected: (SearchDockPoiItem) -> Unit,
+    onSearchResultSelected: (SearchResult) -> Unit,
+    onMapTapAirportSelected: (NearbyAirport) -> Unit,
+    onMapTapAirspaceSelected: (Airspace) -> Unit,
+    onAddToRouteClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
@@ -241,7 +259,11 @@ private fun ExpandedDockContent(
                         }
                     } else {
                         items(state.nearbyPoiItems, key = { it.id }) { item ->
-                            NearbyPoiRow(item = item)
+                            NearbyPoiRow(
+                                item = item,
+                                onClick = { onNearbyPoiSelected(item) },
+                                onAddToRouteClicked = onAddToRouteClicked
+                            )
                         }
                     }
                 }
@@ -270,11 +292,11 @@ private fun ExpandedDockContent(
                             EmptyLine("No search results")
                         }
                     } else {
-                        items(state.searchResults, key = { it }) { result ->
-                            Text(
-                                text = result,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        items(state.searchResults, key = { it.id }) { result ->
+                            SearchResultRow(
+                                result = result,
+                                onClick = { onSearchResultSelected(result) },
+                                onAddToRouteClicked = onAddToRouteClicked
                             )
                         }
                     }
@@ -339,7 +361,11 @@ private fun ExpandedDockContent(
                         }
                     } else {
                         items(mapTapLookup.airports, key = { it.airport.id }) { airport ->
-                            AirportRow(airport = airport)
+                            AirportRow(
+                                airport = airport,
+                                onClick = { onMapTapAirportSelected(airport) },
+                                onAddToRouteClicked = onAddToRouteClicked
+                            )
                         }
                     }
 
@@ -352,7 +378,11 @@ private fun ExpandedDockContent(
                         }
                     } else {
                         items(mapTapLookup.airspaces, key = { it.id }) { airspace ->
-                            AirspaceRow(airspace = airspace)
+                            AirspaceRow(
+                                airspace = airspace,
+                                onClick = { onMapTapAirspaceSelected(airspace) },
+                                onAddToRouteClicked = onAddToRouteClicked
+                            )
                         }
                     }
                 }
@@ -386,11 +416,16 @@ private fun EmptyLine(text: String) {
 }
 
 @Composable
-private fun NearbyPoiRow(item: SearchDockPoiItem) {
+private fun NearbyPoiRow(
+    item: SearchDockPoiItem,
+    onClick: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
     val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -415,15 +450,55 @@ private fun NearbyPoiRow(item: SearchDockPoiItem) {
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant
         )
+        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
-private fun AirportRow(airport: NearbyAirport) {
+private fun SearchResultRow(
+    result: SearchResult,
+    onClick: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
     val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.LocationOn,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = colors.primary
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = result.title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "${result.kindLabel} · ${result.subtitle}",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 1
+            )
+        }
+        AddToRouteButton(onClick = onAddToRouteClicked)
+    }
+}
+
+@Composable
+private fun AirportRow(
+    airport: NearbyAirport,
+    onClick: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -448,22 +523,44 @@ private fun AirportRow(airport: NearbyAirport) {
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant
         )
+        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
-private fun AirspaceRow(airspace: Airspace) {
+private fun AirspaceRow(
+    airspace: Airspace,
+    onClick: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
     val colors = MaterialTheme.colorScheme
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(text = airspace.name.ifBlank { airspace.id }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-        Text(
-            text = "${airspace.kind} · ${formatAltitudeBand(airspace)}",
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.onSurfaceVariant
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = airspace.name.ifBlank { airspace.id }, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "${airspace.kind} · ${formatAltitudeBand(airspace)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant
+            )
+        }
+        AddToRouteButton(onClick = onAddToRouteClicked)
+    }
+}
+
+@Composable
+private fun AddToRouteButton(onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
+        Icon(
+            imageVector = Icons.Filled.Add,
+            contentDescription = "Add to route",
+            modifier = Modifier.size(18.dp)
         )
     }
 }
