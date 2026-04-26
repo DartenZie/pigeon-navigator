@@ -1,6 +1,7 @@
 package cz.miroslavpasek.pigeonnavigator.services
 
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.useContents
 import kotlinx.coroutines.channels.awaitClose
@@ -40,7 +41,23 @@ class LocationServiceIOS : LocationService {
                     speedMetersPerSecond = 0f,
                     bearingDegrees = 0f,
                     horizontalAccuracyMeters = null,
-                    requiresPermission = true
+                    requiresPermission = true,
+                    status = LocationStatus.PermissionRequired
+                )
+            )
+        }
+
+        val sendSignalLost = {
+            trySend(
+                FlightLocation(
+                    latitude = 0.0,
+                    longitude = 0.0,
+                    altitudeMeters = 0.0,
+                    speedMetersPerSecond = 0f,
+                    bearingDegrees = 0f,
+                    horizontalAccuracyMeters = null,
+                    requiresPermission = false,
+                    status = LocationStatus.SignalLost
                 )
             )
         }
@@ -92,7 +109,8 @@ class LocationServiceIOS : LocationService {
                         speedMetersPerSecond = speed,
                         bearingDegrees = bearing,
                         horizontalAccuracyMeters = horizontalAccuracy,
-                        requiresPermission = false
+                        requiresPermission = false,
+                        status = LocationStatus.Active
                     )
                 )
             }
@@ -102,6 +120,7 @@ class LocationServiceIOS : LocationService {
                 didFailWithError: NSError
             ) {
                 println("[LocationServiceIOS] GPS signal lost: ${didFailWithError.localizedDescription}")
+                sendSignalLost()
             }
         }
 

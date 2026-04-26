@@ -24,7 +24,7 @@ data class UdpLocationListenerConfig(
  * Static configuration for the location service source selection.
  */
 data class LocationServiceConfig(
-    val source: LocationStreamSource = LocationStreamSource.UdpDebug,
+    val source: LocationStreamSource = LocationStreamSource.DeviceGps,
     val udpListener: UdpLocationListenerConfig = UdpLocationListenerConfig(
         ipAddress = "0.0.0.0",
         port = 49002,

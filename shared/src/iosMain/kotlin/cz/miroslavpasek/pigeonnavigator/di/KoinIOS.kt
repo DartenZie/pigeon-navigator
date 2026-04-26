@@ -62,7 +62,7 @@ private val iosMapTapLookupModule = module {
 private val iosLocationModule = module {
     single {
         LocationServiceConfig(
-            source = LocationStreamSource.UdpDebug,
+            source = LocationStreamSource.DeviceGps,
             udpListener = UdpLocationListenerConfig(
                 ipAddress = "0.0.0.0",
                 port = 49002,

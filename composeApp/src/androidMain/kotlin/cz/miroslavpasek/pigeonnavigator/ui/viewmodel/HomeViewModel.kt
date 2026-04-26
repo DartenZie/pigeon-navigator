@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupCoordinator
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainWarningLevel
@@ -24,6 +25,7 @@ import kotlinx.coroutines.launch
 data class HomeUIState(
     val location: FlightLocation? = null,
     val requiresPermission: Boolean = false,
+    val locationStatus: LocationStatus? = null,
     val terrainWarningLevel: TerrainWarningLevel = TerrainWarningLevel.None,
     val terrainDistanceToImpactMeters: Double? = null,
     val terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
@@ -55,10 +57,11 @@ class HomeViewModel(
     fun onMapTapped(latitude: Double, longitude: Double) {
         println("[HomeViewModel] onMapTapped lat=$latitude lng=$longitude")
         mapTapLookupCoordinator.queryAt(latitude = latitude, longitude = longitude)
-        if (_uiState.value.searchDock.isExpanded) {
-            println("[HomeViewModel] Collapsing search dock")
-            searchDockStore.send(SearchDockIntent.ExpandedChanged(expanded = false))
-        }
+        collapseSearchDockIfExpanded()
+    }
+
+    fun onMapInteracted() {
+        collapseSearchDockIfExpanded()
     }
 
     fun onSearchDockExpandedChanged(expanded: Boolean) {
@@ -93,31 +96,34 @@ class HomeViewModel(
     private fun startLocationUpdates() {
         locationJob = viewModelScope.launch {
             locationService.observeLocationUpdates().collect { loc ->
-                terrainWarningStore.send(
-                    TerrainWarningIntent.LocationUpdated(
-                        AircraftSnapshot(
-                            latitude = loc.latitude,
-                            longitude = loc.longitude,
-                            altitudeMeters = loc.altitudeMeters,
-                            speedMetersPerSecond = loc.speedMetersPerSecond.toDouble(),
-                            bearingDegrees = loc.bearingDegrees.toDouble()
+                if (loc.status == LocationStatus.Active) {
+                    terrainWarningStore.send(
+                        TerrainWarningIntent.LocationUpdated(
+                            AircraftSnapshot(
+                                latitude = loc.latitude,
+                                longitude = loc.longitude,
+                                altitudeMeters = loc.altitudeMeters,
+                                speedMetersPerSecond = loc.speedMetersPerSecond.toDouble(),
+                                bearingDegrees = loc.bearingDegrees.toDouble()
+                            )
                         )
                     )
-                )
 
-                _uiState.update {
-                    it.copy(
-                        location = loc,
-                        requiresPermission = loc.requiresPermission
+                    searchDockStore.send(
+                        SearchDockIntent.UserLocationChanged(
+                            latitude = loc.latitude,
+                            longitude = loc.longitude
+                        )
                     )
                 }
 
-                searchDockStore.send(
-                    SearchDockIntent.UserLocationChanged(
-                        latitude = loc.latitude,
-                        longitude = loc.longitude
+                _uiState.update {
+                    it.copy(
+                        location = if (loc.status == LocationStatus.Active) loc else it.location,
+                        requiresPermission = loc.status == LocationStatus.PermissionRequired,
+                        locationStatus = loc.status
                     )
-                )
+                }
             }
         }
     }
@@ -139,6 +145,12 @@ class HomeViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private fun collapseSearchDockIfExpanded() {
+        if (_uiState.value.searchDock.isExpanded) {
+            searchDockStore.send(SearchDockIntent.ExpandedChanged(expanded = false))
         }
     }
 

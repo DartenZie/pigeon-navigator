@@ -14,6 +14,7 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -56,6 +57,7 @@ class LocationServiceAndroid(
                         bearingDegrees = 0f,
                         horizontalAccuracyMeters = null,
                         requiresPermission = true,
+                        status = LocationStatus.PermissionRequired,
                     )
                 )
                 null
@@ -69,6 +71,18 @@ class LocationServiceAndroid(
                         super.onLocationAvailability(locationAvailability)
                         if (!locationAvailability.isLocationAvailable) {
                             Log.w("LocationServiceAndroid", "GPS signal lost")
+                            trySend(
+                                FlightLocation(
+                                    latitude = 0.0,
+                                    longitude = 0.0,
+                                    altitudeMeters = 0.0,
+                                    speedMetersPerSecond = 0f,
+                                    bearingDegrees = 0f,
+                                    horizontalAccuracyMeters = null,
+                                    requiresPermission = false,
+                                    status = LocationStatus.SignalLost,
+                                )
+                            )
                         }
                     }
 
@@ -87,6 +101,7 @@ class LocationServiceAndroid(
                                     horizontalAccuracyMeters =
                                         if (location.hasAccuracy()) location.accuracy.toDouble() else null,
                                     requiresPermission = false,
+                                    status = LocationStatus.Active,
                                 )
                             )
                         }

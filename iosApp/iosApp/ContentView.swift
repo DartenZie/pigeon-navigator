@@ -1,6 +1,12 @@
 import SwiftUI
 import CoreLocation
+import UIKit
 import Shared
+
+private enum MapInteraction {
+    case tap(CLLocationCoordinate2D)
+    case pan
+}
 
 struct ContentView: View {
     @State private var coordinate: CLLocationCoordinate2D? = nil
@@ -12,10 +18,12 @@ struct ContentView: View {
     @State private var resetNorthToken: Int = 0
     @State private var recenterOnUserToken: Int = 0
     @State private var isAwayFromUserLocation = false
+    @State private var locationStatus: GpsStatus? = nil
     @State private var hudSize: HUDSize = .bar
     @StateObject private var mapTapLookup = MapTapLookupViewModelWrapper()
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
     @StateObject private var dock = SearchDockViewModelWrapper()
+    @StateObject private var locationPermission = LocationPermissionController()
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
@@ -31,7 +39,6 @@ struct ContentView: View {
             : 0
 
         GeometryReader { proxy in
-            let safeInsets = proxy.safeAreaInsets
             let hudSearchBarHeight = max(hudSize.height(in: proxy), 48)
 
             ZStack(alignment: .bottom) {
@@ -45,18 +52,14 @@ struct ContentView: View {
                     onDirectionChange: { direction in
                         mapDirection = direction
                     },
+                    onMapInteraction: {
+                        DispatchQueue.main.async {
+                            handleMapInteraction(.pan)
+                        }
+                    },
                     onMapTap: { tapCoordinate in
                         DispatchQueue.main.async {
-                            mapTapLookup.queryAt(
-                                latitude: tapCoordinate.latitude,
-                                longitude: tapCoordinate.longitude
-                            )
-                            dock.onMapSelectionChanged(true)
-                            if hudSize == .bar {
-                                withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
-                                    hudSize = .half
-                                }
-                            }
+                            handleMapInteraction(.tap(tapCoordinate))
                         }
                     },
                     onAwayFromUserLocationChange: { isAway in
@@ -68,8 +71,9 @@ struct ContentView: View {
                 .ignoresSafeArea()
                 .onAppear {
                     observer.start { loc in
-                        guard !loc.requiresPermission else {
-                            print("Location permission required")
+                        locationStatus = GpsStatus(kotlinStatusName: loc.status.name)
+
+                        guard locationStatus == .active else {
                             return
                         }
 
@@ -97,7 +101,7 @@ struct ContentView: View {
                 .onDisappear {
                     observer.stop()
                 }
-                
+
                 HUDSearchBar(
                     hudSize: $hudSize,
                     dock: dock,
@@ -124,8 +128,21 @@ struct ContentView: View {
                 }
 
                 VStack {
-                    HStack {
-                        Spacer(minLength: 0)
+                    ZStack(alignment: .trailing) {
+                        HStack(alignment: .center) {
+                            Spacer(minLength: 0)
+
+                            if let locationStatus, locationStatus != .active {
+                                GpsStatusBadge(status: locationStatus) {
+                                    if locationStatus == .permissionRequired {
+                                        locationPermission.requestOrOpenSettings()
+                                    }
+                                }
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                            }
+
+                            Spacer(minLength: 0)
+                        }
 
                         Button(action: {}) {
                             Image(systemName: "gearshape.fill")
@@ -136,16 +153,121 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
                         .modifier(GlassBubbleStyle(shape: Circle()))
-                        .padding(.top, settingsTopPadding)
                         .padding(.trailing, settingsTrailingPadding)
                     }
+                    .frame(height: settingsButtonSize)
+                    .padding(.top, settingsTopPadding)
+                    .animation(.spring(response: 0.44, dampingFraction: 0.76), value: locationStatus)
 
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .zIndex(3)
+                .zIndex(4)
             }
         }
+    }
+
+    private func handleMapInteraction(_ interaction: MapInteraction) {
+        switch interaction {
+        case .tap:
+            break
+        case .pan:
+            break
+        }
+
+        dock.onMapSelectionChanged(false)
+        dock.onExpandedChanged(false)
+        if hudSize != .bar {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                hudSize = .bar
+            }
+        }
+    }
+}
+
+private enum GpsStatus: Equatable {
+    case active
+    case permissionRequired
+    case signalLost
+
+    init?(kotlinStatusName: String) {
+        switch kotlinStatusName {
+        case "Active": self = .active
+        case "PermissionRequired": self = .permissionRequired
+        case "SignalLost": self = .signalLost
+        default: return nil
+        }
+    }
+}
+
+private struct GpsStatusBadge: View {
+    let status: GpsStatus
+    let onTap: () -> Void
+
+    private var title: String {
+        switch status {
+        case .active: ""
+        case .permissionRequired: "No Location Access"
+        case .signalLost: "GPS Signal Lost"
+        }
+    }
+
+    private var systemImage: String {
+        switch status {
+        case .active: "location.fill"
+        case .permissionRequired: "location.slash.fill"
+        case .signalLost: "dot.radiowaves.left.and.right"
+        }
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 15, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(status == .permissionRequired ? .red : .orange)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(status != .permissionRequired)
+        .modifier(GlassBubbleStyle(shape: Capsule()))
+    }
+}
+
+@MainActor
+private final class LocationPermissionController: NSObject, ObservableObject, CLLocationManagerDelegate {
+    private let manager = CLLocationManager()
+
+    override init() {
+        super.init()
+        manager.delegate = self
+    }
+
+    func requestOrOpenSettings() {
+        switch manager.authorizationStatus {
+        case .notDetermined:
+            manager.requestWhenInUseAuthorization()
+        case .denied, .restricted:
+            openAppSettings()
+        case .authorizedAlways, .authorizedWhenInUse:
+            break
+        @unknown default:
+            break
+        }
+    }
+
+    private func openAppSettings() {
+        guard let settingsURL = URL(string: UIApplication.openSettingsURLString),
+              UIApplication.shared.canOpenURL(settingsURL) else {
+            return
+        }
+
+        UIApplication.shared.open(settingsURL, options: [:])
     }
 }
 

@@ -32,24 +32,44 @@ internal object GeoMath {
         return radiusMeters / (METERS_PER_LAT_DEGREE * latitudeCos)
     }
 
+    /**
+     * Canonical ray-casting point-in-polygon test (PNPOLY).
+     *
+     * The previous implementation clamped the latitude difference with
+     * `coerceAtLeast(1e-12)`, which silently inverted the slope sign for
+     * "downgoing" edges (where `previous.latitude < current.latitude`) and
+     * produced wrong containment results for ~half of every polygon's edges.
+     * The straddle guard already guarantees the difference is non-zero, so no
+     * clamp is needed.
+     *
+     * Uses strict `>` on the latitude comparison: this is the canonical
+     * convention that prevents double-counting when the test ray passes
+     * exactly through a polygon vertex.
+     */
     fun polygonContains(point: GeoPoint, polygon: List<GeoPoint>): Boolean {
-        var contains = false
+        if (polygon.size < 3) return false
+
+        var inside = false
         var previous = polygon.last()
 
         polygon.forEach { current ->
-            val intersects = (current.latitude > point.latitude) != (previous.latitude > point.latitude) &&
-                point.longitude <
-                ((previous.longitude - current.longitude) *
-                    (point.latitude - current.latitude) /
-                    ((previous.latitude - current.latitude).coerceAtLeast(1e-12)) + current.longitude)
-
-            if (intersects) {
-                contains = !contains
+            val straddles =
+                (current.latitude > point.latitude) != (previous.latitude > point.latitude)
+            if (straddles) {
+                // Non-zero by the straddle guard above.
+                val dy = previous.latitude - current.latitude
+                val crossingLon =
+                    (previous.longitude - current.longitude) *
+                        (point.latitude - current.latitude) / dy +
+                        current.longitude
+                if (point.longitude < crossingLon) {
+                    inside = !inside
+                }
             }
             previous = current
         }
 
-        return contains
+        return inside
     }
 }
 

@@ -20,6 +20,7 @@ struct NavigateView: UIViewRepresentable {
     var followUser: Bool = true
     var zoomLevel = 10.5
     var onDirectionChange: (CLLocationDirection) -> Void = { _ in }
+    var onMapInteraction: () -> Void = {}
     var onMapTap: (CLLocationCoordinate2D) -> Void = { _ in }
     var onAwayFromUserLocationChange: (Bool) -> Void = { _ in }
     var resetNorthToken: Int = 0
@@ -48,6 +49,7 @@ struct NavigateView: UIViewRepresentable {
     func makeCoordinator() -> Coordinator {
         Coordinator(
             onDirectionChange: onDirectionChange,
+            onMapInteraction: onMapInteraction,
             onMapTap: onMapTap,
             onAwayFromUserLocationChange: onAwayFromUserLocationChange,
             awayFromUserDistanceMeters: awayFromUserDistanceMeters
@@ -168,6 +170,7 @@ struct NavigateView: UIViewRepresentable {
         mapView.compassView.isHidden = true
 
         context.coordinator.onDirectionChange = onDirectionChange
+        context.coordinator.onMapInteraction = onMapInteraction
         context.coordinator.onMapTap = onMapTap
         context.coordinator.onAwayFromUserLocationChange = onAwayFromUserLocationChange
         context.coordinator.renderTerrainHazardsTemplate(
@@ -272,6 +275,7 @@ struct NavigateView: UIViewRepresentable {
         var isAwayFromUserLocation = false
         var isTrackingUserLocation = true
         var onDirectionChange: (CLLocationDirection) -> Void
+        var onMapInteraction: () -> Void
         var onMapTap: (CLLocationCoordinate2D) -> Void
         var onAwayFromUserLocationChange: (Bool) -> Void
         let awayFromUserDistanceMeters: CLLocationDistance
@@ -281,11 +285,13 @@ struct NavigateView: UIViewRepresentable {
 
         init(
             onDirectionChange: @escaping (CLLocationDirection) -> Void,
+            onMapInteraction: @escaping () -> Void,
             onMapTap: @escaping (CLLocationCoordinate2D) -> Void,
             onAwayFromUserLocationChange: @escaping (Bool) -> Void,
             awayFromUserDistanceMeters: CLLocationDistance
         ) {
             self.onDirectionChange = onDirectionChange
+            self.onMapInteraction = onMapInteraction
             self.onMapTap = onMapTap
             self.onAwayFromUserLocationChange = onAwayFromUserLocationChange
             self.awayFromUserDistanceMeters = awayFromUserDistanceMeters
@@ -295,6 +301,7 @@ struct NavigateView: UIViewRepresentable {
         func handlePanGesture(_ recognizer: UIPanGestureRecognizer) {
             if recognizer.state == .began {
                 isTrackingUserLocation = false
+                onMapInteraction()
             }
         }
 

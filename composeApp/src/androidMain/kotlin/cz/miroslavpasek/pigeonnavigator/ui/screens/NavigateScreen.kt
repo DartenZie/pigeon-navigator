@@ -91,6 +91,7 @@ fun NavigateScreen(
     terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
     followUser: Boolean = true,
     onDirectionChange: (Double) -> Unit = {},
+    onMapInteraction: () -> Unit = {},
     onMapTap: (latitude: Double, longitude: Double) -> Unit = { _, _ -> },
     onAwayFromUserLocationChange: (Boolean) -> Unit = {},
     resetNorthToken: Int = 0,
@@ -207,6 +208,7 @@ fun NavigateScreen(
                     map.addOnCameraMoveStartedListener { reason ->
                         if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
                             isTrackingUserLocation = false
+                            onMapInteraction()
                         }
                     }
                     map.addOnCameraMoveListener {
@@ -224,6 +226,7 @@ fun NavigateScreen(
                 if (!didAttachMapTapListener) {
                     didAttachMapTapListener = true
                     map.addOnMapClickListener { latLng ->
+                        onMapInteraction()
                         onMapTap(latLng.latitude, latLng.longitude)
                         true
                     }

@@ -10,6 +10,7 @@ package cz.miroslavpasek.pigeonnavigator.data
  * @property bearingDegrees Course angle in degrees.
  * @property horizontalAccuracyMeters Estimated horizontal accuracy radius in meters.
  * @property requiresPermission True when location data cannot be provided until permission is granted.
+ * @property status Current availability of platform location updates.
  */
 data class FlightLocation(
     val latitude: Double,
@@ -18,5 +19,16 @@ data class FlightLocation(
     val speedMetersPerSecond: Float,
     val bearingDegrees: Float,
     val horizontalAccuracyMeters: Double? = null,
-    val requiresPermission: Boolean = false
+    val requiresPermission: Boolean = false,
+    val status: LocationStatus = if (requiresPermission) {
+        LocationStatus.PermissionRequired
+    } else {
+        LocationStatus.Active
+    }
 )
+
+enum class LocationStatus {
+    Active,
+    PermissionRequired,
+    SignalLost
+}
