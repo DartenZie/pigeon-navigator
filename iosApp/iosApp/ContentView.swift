@@ -26,7 +26,8 @@ struct ContentView: View {
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
     @StateObject private var dock = SearchDockViewModelWrapper()
     @StateObject private var locationPermission = LocationPermissionController()
-    @StateObject private var appSettings = AppSettingsViewModelWrapper()
+    @ObservedObject var appSettings: AppSettingsViewModelWrapper
+    @State private var isSettingsPresented: Bool = false
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
@@ -219,7 +220,7 @@ struct ContentView: View {
                             Spacer(minLength: 0)
                         }
 
-                        Button(action: {}) {
+                        Button(action: { isSettingsPresented = true }) {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundStyle(.primary)
@@ -229,6 +230,9 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                         .modifier(GlassBubbleStyle(shape: Circle()))
                         .padding(.trailing, settingsTrailingPadding)
+                        .sheet(isPresented: $isSettingsPresented) {
+                            SettingsView(viewModel: appSettings)
+                        }
                     }
                     .frame(height: settingsButtonSize)
                     .padding(.top, settingsTopPadding)

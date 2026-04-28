@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.maplibre.android.sdk)
     implementation(libs.compose.material.icons.extended)
     implementation(projects.shared)
+    implementation(projects.core.util)
     implementation(projects.core.platform)
     implementation(projects.domain)
     implementation(projects.data.searchData)

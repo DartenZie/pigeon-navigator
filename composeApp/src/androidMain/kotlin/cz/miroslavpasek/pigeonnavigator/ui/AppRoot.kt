@@ -58,6 +58,7 @@ import cz.miroslavpasek.pigeonnavigator.ui.components.BubbleSize
 import cz.miroslavpasek.pigeonnavigator.ui.components.HudCluster
 import cz.miroslavpasek.pigeonnavigator.ui.components.CircularActionButton
 import cz.miroslavpasek.pigeonnavigator.ui.screens.NavigateScreen
+import cz.miroslavpasek.pigeonnavigator.ui.screens.SettingsScreen
 import cz.miroslavpasek.pigeonnavigator.ui.viewmodel.HomeViewModel
 import org.koin.androidx.compose.koinViewModel
 import kotlin.math.roundToInt
@@ -76,6 +77,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     var mapFocus by remember { mutableStateOf<SearchDockMapFocus?>(null) }
     var didAutoRequestLocationPermission by remember { mutableStateOf(false) }
     var didAskLocationPermission by remember { mutableStateOf(hasLocationPermission(context)) }
+    var isSettingsVisible by remember { mutableStateOf(false) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -177,7 +179,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                 )
 
                 CircularActionButton(
-                    onClick = {},
+                    onClick = { isSettingsVisible = true },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
@@ -244,6 +246,13 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                         )
                         .then(if (isSearchDockFullExpanded) Modifier else Modifier.navigationBarsPadding())
                 )
+
+                if (isSettingsVisible) {
+                    SettingsScreen(
+                        onClose = { isSettingsVisible = false },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }
