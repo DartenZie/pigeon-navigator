@@ -74,6 +74,14 @@ struct ContentView: View {
                 )
                 .ignoresSafeArea()
                 .onAppear {
+                    mapTapLookup.onLookupChanged = { [weak dock = dock] cursor, isLoading, hasResults, hasSelection in
+                        dock?.onMapTapLookupChanged(
+                            cursor: cursor,
+                            isLoading: isLoading,
+                            hasResults: hasResults,
+                            hasSelection: hasSelection
+                        )
+                    }
                     observer.start { loc in
                         locationStatus = GpsStatus(kotlinStatusName: loc.status.name)
 
@@ -104,6 +112,19 @@ struct ContentView: View {
                 }
                 .onDisappear {
                     observer.stop()
+                }
+                .onChange(of: dock.isExpanded) { (expanded: Bool) in
+                    // The shared reducer auto-expands the dock when a fresh
+                    // map-tap lookup returns results. Mirror that into the
+                    // HUD bar size so the user actually sees the panel grow.
+                    // Only act on the collapsed -> expanded transition; the
+                    // collapse paths (pan, focusMap) already drive hudSize
+                    // explicitly.
+                    if expanded && hudSize == .bar {
+                        withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                            hudSize = .half
+                        }
+                    }
                 }
 
                 HUDSearchBar(
@@ -157,6 +178,24 @@ struct ContentView: View {
                     .animation(.spring(response: 0.44, dampingFraction: 0.76), value: hudSize)
                 }
 
+                Color.clear
+                    .frame(width: 0, height: 0)
+                    .onChange(of: dock.isExpanded) { (expanded: Bool) in
+                        // Mirror the shared dock state into the HUD chrome size:
+                        // when the reducer auto-expands the dock (e.g. after a
+                        // map-tap lookup returns results), grow the search bar
+                        // to .half. When the dock collapses, shrink back to .bar.
+                        if expanded && hudSize == .bar {
+                            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                                hudSize = .half
+                            }
+                        } else if !expanded && hudSize != .bar {
+                            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                                hudSize = .bar
+                            }
+                        }
+                    }
+
                 VStack {
                     ZStack(alignment: .trailing) {
                         HStack(alignment: .center) {
@@ -199,14 +238,15 @@ struct ContentView: View {
 
     private func handleMapInteraction(_ interaction: MapInteraction) {
         switch interaction {
-        case .tap:
-            break
+        case .tap(let coordinate):
+            // Run the airspace/airport/navaid lookup. Dock expansion + MapTap
+            // routing is decided by the shared reducer once results land.
+            mapTapLookup.queryAt(latitude: coordinate.latitude, longitude: coordinate.longitude)
         case .pan:
-            break
+            dock.onMapSelectionChanged(false)
+            dock.onExpandedChanged(false)
         }
 
-        dock.onMapSelectionChanged(false)
-        dock.onExpandedChanged(false)
         if hudSize != .bar {
             withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
                 hudSize = .bar
@@ -337,6 +377,12 @@ final class MapTapLookupViewModelWrapper: ObservableObject {
     @Published var errorMessage: String? = nil
     @Published var airports: [MapTapAirportItem] = []
     @Published var airspaces: [MapTapAirspaceItem] = []
+    @Published var navaids: [MapTapNavaidItem] = []
+
+    /// Optional listener invoked on every state update from the shared coordinator.
+    /// Used by `ContentView` to forward the lookup signal into the dock store so
+    /// the shared reducer can auto-expand on a fresh result.
+    var onLookupChanged: ((_ cursor: Int64, _ isLoading: Bool, _ hasResults: Bool, _ hasSelection: Bool) -> Void)?
 
     init() {
         self.handle = MapTapLookupHelper.resolve()
@@ -348,6 +394,11 @@ final class MapTapLookupViewModelWrapper: ObservableObject {
             self.errorMessage = state.errorMessage
             self.airports = state.airports
             self.airspaces = state.airspaces
+            self.navaids = state.navaids
+
+            let hasSelection = state.selectedLatitude != nil && state.selectedLongitude != nil
+            let hasResults = !state.airports.isEmpty || !state.airspaces.isEmpty || !state.navaids.isEmpty
+            self.onLookupChanged?(state.lookupSequence, state.isLoading, hasResults, hasSelection)
         }
     }
 

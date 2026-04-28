@@ -80,13 +80,16 @@ internal class RealSearchDockStore(
 
             is SearchDockIntent.RoutePlanningChanged,
             is SearchDockIntent.MapSelectionChanged,
+            is SearchDockIntent.MapTapLookupChanged,
             is SearchDockIntent.SearchQueryChanged,
             SearchDockIntent.SearchCleared,
             SearchDockIntent.NearbyPoiLoadRequested,
             is SearchDockIntent.NearbyPoiLoaded,
             is SearchDockIntent.NearbyPoiFailed,
             is SearchDockIntent.SearchSucceeded,
-            is SearchDockIntent.SearchFailed -> reduce(intent)
+            is SearchDockIntent.SearchFailed,
+            is SearchDockIntent.OpenMapTapDetail,
+            SearchDockIntent.CloseMapTapDetail -> reduce(intent)
         }
     }
 

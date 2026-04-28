@@ -17,11 +17,15 @@ class SearchDockReducer(
                     null
                 } else {
                     state.selectedRouteOverride
-                }
+                },
+                // Collapsing the dock dismisses any open detail panel so the
+                // user comes back to the list view next time they expand.
+                selectedMapTapDetailKey = if (intent.expanded) state.selectedMapTapDetailKey else null
             )
             is SearchDockIntent.RouteSelected -> state.copy(selectedRouteOverride = intent.route)
             is SearchDockIntent.RoutePlanningChanged -> state.copy(isRoutePlanning = intent.planning)
             is SearchDockIntent.MapSelectionChanged -> state.copy(hasMapSelection = intent.hasSelection)
+            is SearchDockIntent.MapTapLookupChanged -> reduceMapTapLookupChanged(state, intent)
             is SearchDockIntent.UserLocationChanged -> state
             is SearchDockIntent.SearchQueryChanged -> {
                 val trimmedQuery = intent.query.trim()
@@ -80,6 +84,14 @@ class SearchDockReducer(
                 isNearbyPoiLoading = false,
                 nearbyPoiErrorMessage = intent.failure.toMessage()
             )
+
+            is SearchDockIntent.OpenMapTapDetail -> state.copy(
+                selectedMapTapDetailKey = intent.key
+            )
+
+            SearchDockIntent.CloseMapTapDetail -> state.copy(
+                selectedMapTapDetailKey = null
+            )
         }
 
         val availableRoutes = routeResolver.availableRoutes(next)
@@ -91,6 +103,49 @@ class SearchDockReducer(
             availableRoutes = availableRoutes,
             activeRoute = activeRoute
         )
+    }
+
+    /**
+     * Auto-expands the dock and routes to [SearchDockRoute.MapTap] iff:
+     *   - the user currently has a tapped point,
+     *   - the lookup is no longer loading,
+     *   - the lookup returned at least one result, AND
+     *   - the lookup's [SearchDockIntent.MapTapLookupChanged.cursor] differs
+     *     from the cursor we last auto-expanded for (so the dock does not
+     *     re-open after the user manually collapses it for this same tap).
+     *
+     * Always mirrors `hasSelection` into [SearchDockState.hasMapSelection].
+     */
+    private fun reduceMapTapLookupChanged(
+        state: SearchDockState,
+        intent: SearchDockIntent.MapTapLookupChanged
+    ): SearchDockState {
+        // A "fresh" lookup is one whose cursor we have not auto-acted on yet.
+        // Once the lookup has finished loading, treat it as a new tap context:
+        // dismiss any detail panel from a previous tap so the dock returns to
+        // the list view (or stays collapsed for a zero-result tap).
+        val isFreshFinishedLookup = intent.hasSelection &&
+            !intent.isLoading &&
+            intent.cursor != state.lastAutoExpandedMapTapCursor
+
+        val baseDetailKey = if (isFreshFinishedLookup) null else state.selectedMapTapDetailKey
+
+        val base = state.copy(
+            hasMapSelection = intent.hasSelection,
+            selectedMapTapDetailKey = baseDetailKey
+        )
+
+        val shouldAutoExpand = isFreshFinishedLookup && intent.hasResults
+
+        return if (shouldAutoExpand) {
+            base.copy(
+                isExpanded = true,
+                selectedRouteOverride = SearchDockRoute.MapTap,
+                lastAutoExpandedMapTapCursor = intent.cursor
+            )
+        } else {
+            base
+        }
     }
 
     private fun Failure.toMessage(): String = when (this) {

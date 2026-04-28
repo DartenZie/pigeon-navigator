@@ -57,6 +57,7 @@ private val iosMapTapLookupModule = module {
         MapTapLookupCoordinator(
             queryNearbyAirportsUseCase = get(),
             queryContainingAirspacesUseCase = get(),
+            queryNearbyNavaidsUseCase = get(),
             dispatcherProvider = get()
         )
     }
@@ -323,6 +324,37 @@ class SearchDockHandle(
         store.send(SearchDockIntent.MapSelectionChanged(hasSelection = hasSelection))
     }
 
+    /**
+     * Forwards the latest map-tap lookup state. The shared reducer auto-expands
+     * the dock and switches to the MapTap route when a fresh lookup
+     * (a previously-unseen [cursor]) completes with at least one result.
+     */
+    fun onMapTapLookupChanged(
+        cursor: Long,
+        isLoading: Boolean,
+        hasResults: Boolean,
+        hasSelection: Boolean
+    ) {
+        store.send(
+            SearchDockIntent.MapTapLookupChanged(
+                cursor = cursor,
+                isLoading = isLoading,
+                hasResults = hasResults,
+                hasSelection = hasSelection
+            )
+        )
+    }
+
+    /** Opens the map-tap detail panel for the given key (e.g. `"airport:LKAA"`). */
+    fun openMapTapDetail(key: String) {
+        store.send(SearchDockIntent.OpenMapTapDetail(key = key))
+    }
+
+    /** Dismisses the map-tap detail panel and returns to the list view. */
+    fun closeMapTapDetail() {
+        store.send(SearchDockIntent.CloseMapTapDetail)
+    }
+
     /** Pushes the latest user location so nearby POIs can refresh. */
     fun onUserLocationChanged(latitude: Double, longitude: Double) {
         store.send(
@@ -376,7 +408,8 @@ data class SearchDockViewState(
     val searchErrorMessage: String? = null,
     val isNearbyPoiLoading: Boolean = false,
     val nearbyPoiErrorMessage: String? = null,
-    val nearbyPoiItems: List<SearchDockPoiViewItem> = emptyList()
+    val nearbyPoiItems: List<SearchDockPoiViewItem> = emptyList(),
+    val selectedMapTapDetailKey: String? = null
 )
 
 private fun SearchDockRoute.toTag(): String = when (this) {
@@ -417,7 +450,8 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
                 latitude = it.latitude,
                 longitude = it.longitude
             )
-        }
+        },
+        selectedMapTapDetailKey = selectedMapTapDetailKey
     )
 }
 
@@ -441,13 +475,25 @@ data class MapTapAirspaceItem(
     val maxLongitude: Double
 )
 
+data class MapTapNavaidItem(
+    val id: String,
+    val ident: String,
+    val name: String,
+    val detail: String,
+    val distanceLabel: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
 data class MapTapLookupViewState(
     val selectedLatitude: Double? = null,
     val selectedLongitude: Double? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
     val airports: List<MapTapAirportItem> = emptyList(),
-    val airspaces: List<MapTapAirspaceItem> = emptyList()
+    val airspaces: List<MapTapAirspaceItem> = emptyList(),
+    val navaids: List<MapTapNavaidItem> = emptyList(),
+    val lookupSequence: Long = 0L
 )
 
 data class TerrainHazardViewPoint(
@@ -494,7 +540,19 @@ private fun MapTapLookupState.toViewState(): MapTapLookupViewState {
                 maxLatitude = bounds.maxLatitude,
                 maxLongitude = bounds.maxLongitude
             )
-        }
+        },
+        navaids = navaids.map {
+            MapTapNavaidItem(
+                id = "navaid:${it.navaid.id}",
+                ident = it.navaid.id,
+                name = it.navaid.name,
+                detail = "${it.navaid.kind} · ${it.navaid.detail}",
+                distanceLabel = it.distanceMeters.toDistanceLabel(),
+                latitude = it.navaid.latitude,
+                longitude = it.navaid.longitude
+            )
+        },
+        lookupSequence = lookupSequence
     )
 }
 

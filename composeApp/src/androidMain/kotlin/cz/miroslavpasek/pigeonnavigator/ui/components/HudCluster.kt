@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
@@ -58,6 +59,9 @@ fun HudCluster(
     onSearchResultSelected: (SearchResult) -> Unit,
     onMapTapAirportSelected: (NearbyAirport) -> Unit,
     onMapTapAirspaceSelected: (Airspace) -> Unit,
+    onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
+    onMapTapDetailRequested: (key: String) -> Unit,
+    onMapTapDetailClosed: () -> Unit,
     onAddToRouteClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -131,6 +135,9 @@ fun HudCluster(
             onSearchResultSelected = onSearchResultSelected,
             onMapTapAirportSelected = onMapTapAirportSelected,
             onMapTapAirspaceSelected = onMapTapAirspaceSelected,
+            onMapTapNavaidSelected = onMapTapNavaidSelected,
+            onMapTapDetailRequested = onMapTapDetailRequested,
+            onMapTapDetailClosed = onMapTapDetailClosed,
             onAddToRouteClicked = onAddToRouteClicked,
             modifier = Modifier
                 .fillMaxWidth()

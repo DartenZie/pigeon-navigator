@@ -10,6 +10,7 @@ val appModule = module {
         MapTapLookupCoordinator(
             queryNearbyAirportsUseCase = get(),
             queryContainingAirspacesUseCase = get(),
+            queryNearbyNavaidsUseCase = get(),
             dispatcherProvider = get()
         )
     }

@@ -54,6 +54,7 @@ final class SearchDockViewModelWrapper: ObservableObject {
     @Published var isNearbyPoiLoading: Bool = false
     @Published var nearbyPoiErrorMessage: String? = nil
     @Published var nearbyPoiItems: [SearchDockPoiViewItem] = []
+    @Published var selectedMapTapDetailKey: String? = nil
 
     init() {
         self.handle = SearchDockHelper.resolve()
@@ -73,6 +74,7 @@ final class SearchDockViewModelWrapper: ObservableObject {
             self.isNearbyPoiLoading = state.isNearbyPoiLoading
             self.nearbyPoiErrorMessage = state.nearbyPoiErrorMessage
             self.nearbyPoiItems = state.nearbyPoiItems
+            self.selectedMapTapDetailKey = state.selectedMapTapDetailKey
         }
     }
 
@@ -104,8 +106,35 @@ final class SearchDockViewModelWrapper: ObservableObject {
         handle.onMapSelectionChanged(hasSelection: hasSelection)
     }
 
+    /// Forwards the latest map-tap lookup state to the shared dock reducer.
+    /// The reducer auto-expands the dock and switches to the MapTap route
+    /// the first time a fresh `cursor` arrives with `hasResults == true`.
+    func onMapTapLookupChanged(
+        cursor: Int64,
+        isLoading: Bool,
+        hasResults: Bool,
+        hasSelection: Bool
+    ) {
+        handle.onMapTapLookupChanged(
+            cursor: cursor,
+            isLoading: isLoading,
+            hasResults: hasResults,
+            hasSelection: hasSelection
+        )
+    }
+
     func onUserLocationChanged(latitude: Double, longitude: Double) {
         handle.onUserLocationChanged(latitude: latitude, longitude: longitude)
+    }
+
+    /// Opens the map-tap detail panel for the given key (e.g. "airport:LKAA").
+    func openMapTapDetail(_ key: String) {
+        handle.openMapTapDetail(key: key)
+    }
+
+    /// Dismisses the map-tap detail panel and returns to the list view.
+    func closeMapTapDetail() {
+        handle.closeMapTapDetail()
     }
 
     deinit {

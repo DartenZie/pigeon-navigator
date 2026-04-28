@@ -88,6 +88,14 @@ class HomeViewModel(
         searchDockStore.send(SearchDockIntent.RouteSelected(route = route))
     }
 
+    fun onMapTapDetailRequested(key: String) {
+        searchDockStore.send(SearchDockIntent.OpenMapTapDetail(key = key))
+    }
+
+    fun onMapTapDetailClosed() {
+        searchDockStore.send(SearchDockIntent.CloseMapTapDetail)
+    }
+
     fun collapseSearchDock() {
         collapseSearchDockIfExpanded()
     }
@@ -162,7 +170,17 @@ class HomeViewModel(
         viewModelScope.launch {
             mapTapLookupCoordinator.state.collect { lookupState ->
                 val hasSelection = lookupState.selectedLatitude != null && lookupState.selectedLongitude != null
-                searchDockStore.send(SearchDockIntent.MapSelectionChanged(hasSelection = hasSelection))
+                val hasResults = lookupState.airports.isNotEmpty() ||
+                    lookupState.airspaces.isNotEmpty() ||
+                    lookupState.navaids.isNotEmpty()
+                searchDockStore.send(
+                    SearchDockIntent.MapTapLookupChanged(
+                        cursor = lookupState.lookupSequence,
+                        isLoading = lookupState.isLoading,
+                        hasResults = hasResults,
+                        hasSelection = hasSelection
+                    )
+                )
                 _uiState.update {
                     it.copy(mapTapLookup = lookupState)
                 }

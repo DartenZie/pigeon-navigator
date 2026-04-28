@@ -196,6 +196,16 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                     onMapTapAirspaceSelected = { airspace ->
                         focusMap(airspace.toMapFocus())
                     },
+                    onMapTapNavaidSelected = { navaid ->
+                        focusMap(
+                            SearchDockMapFocus.Point(
+                                latitude = navaid.navaid.latitude,
+                                longitude = navaid.navaid.longitude
+                            )
+                        )
+                    },
+                    onMapTapDetailRequested = vm::onMapTapDetailRequested,
+                    onMapTapDetailClosed = vm::onMapTapDetailClosed,
                     onAddToRouteClicked = {},
                     modifier = Modifier
                         .align(Alignment.BottomCenter)

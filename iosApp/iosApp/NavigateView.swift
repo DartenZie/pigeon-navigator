@@ -9,6 +9,7 @@ import SwiftUI
 import MapLibre
 import CoreLocation
 import UIKit
+import QuartzCore
 import Shared
 
 struct NavigateView: UIViewRepresentable {
@@ -211,7 +212,7 @@ struct NavigateView: UIViewRepresentable {
 
         if context.coordinator.lastResetNorthToken != resetNorthToken {
             context.coordinator.lastResetNorthToken = resetNorthToken
-            mapView.setDirection(0, animated: true)
+            context.coordinator.animateResetNorth(mapView)
         }
 
         if context.coordinator.lastRecenterOnUserToken != recenterOnUserToken {
@@ -395,6 +396,26 @@ struct NavigateView: UIViewRepresentable {
             let gpsLocation = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
             let isAway = centerLocation.distance(from: gpsLocation) >= awayFromUserDistanceMeters
             setAwayFromUserLocation(isAway)
+        }
+
+        func animateResetNorth(_ mapView: MLNMapView) {
+            let currentCamera = mapView.camera
+            let camera = MLNMapCamera(
+                lookingAtCenter: currentCamera.centerCoordinate,
+                altitude: currentCamera.altitude,
+                pitch: currentCamera.pitch,
+                heading: 0
+            )
+            let animationDuration = 0.35
+            mapView.setCamera(
+                camera,
+                withDuration: animationDuration,
+                animationTimingFunction: CAMediaTimingFunction(name: .easeInEaseOut)
+            )
+            DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self, weak mapView] in
+                guard mapView != nil else { return }
+                self?.onDirectionChange(0)
+            }
         }
         
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {

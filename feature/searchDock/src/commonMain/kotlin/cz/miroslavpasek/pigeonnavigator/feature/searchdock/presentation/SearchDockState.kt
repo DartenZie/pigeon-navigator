@@ -54,5 +54,21 @@ data class SearchDockState(
     val searchErrorMessage: String? = null,
     val isNearbyPoiLoading: Boolean = false,
     val nearbyPoiErrorMessage: String? = null,
-    val nearbyPoiItems: List<SearchDockPoiItem> = emptyList()
+    val nearbyPoiItems: List<SearchDockPoiItem> = emptyList(),
+    /**
+     * Cursor of the last [MapTapLookup] for which the dock was auto-expanded.
+     * Internal bookkeeping for the reducer's "expand only on a fresh lookup
+     * with results" rule; UI does not need to read this.
+     */
+    val lastAutoExpandedMapTapCursor: Long? = null,
+    /**
+     * Stable identifier of the map-tap result currently shown in the detail
+     * panel (e.g. `"airport:LKAA"`, `"navaid:PRG"`, `"airspace:LKAA-CTR"`),
+     * or `null` when the dock is showing the regular list of categories.
+     *
+     * The UI looks the actual record up by this key in the latest
+     * `MapTapLookupState`. The reducer auto-clears the key when a fresh
+     * lookup arrives or the dock is collapsed.
+     */
+    val selectedMapTapDetailKey: String? = null
 )

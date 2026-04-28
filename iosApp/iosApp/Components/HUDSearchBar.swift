@@ -52,6 +52,7 @@ struct HUDSearchBar: View {
     var onSearchResultTap: (SearchDockResultViewItem) -> Void = { _ in }
     var onMapTapAirportTap: (MapTapAirportItem) -> Void = { _ in }
     var onMapTapAirspaceTap: (MapTapAirspaceItem) -> Void = { _ in }
+    var onMapTapNavaidTap: (MapTapNavaidItem) -> Void = { _ in }
     var onAddToRouteTap: () -> Void = {}
 
     private var size: HUDSize { hudSize }
@@ -226,8 +227,10 @@ struct HUDSearchBar: View {
         case .mapTap:
             HUDSearchMapTapPage(
                 mapTapLookup: mapTapLookup,
+                dock: dock,
                 onAirportTap: onMapTapAirportTap,
                 onAirspaceTap: onMapTapAirspaceTap,
+                onNavaidTap: onMapTapNavaidTap,
                 onAddToRouteTap: onAddToRouteTap
             )
         case .nearby:
@@ -257,8 +260,10 @@ struct HUDSearchBar: View {
     }
 
     private func nextSize(velocity: CGFloat, drag: CGFloat, geo: GeometryProxy) -> HUDSize {
-        if velocity < -500 { return expandedSize(from: size) }
-        if velocity > 500 { return collapsedSize(from: size) }
+        let projectedMotion = velocity - drag
+        if projectedMotion < -500 { return .full }
+        if projectedMotion > 500 { return .bar }
+        if abs(drag) > 24 { return .half }
 
         let projected = size.height(in: geo) - drag
         return [HUDSize.bar, .half, .full]
