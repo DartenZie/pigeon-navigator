@@ -40,8 +40,10 @@ private val ControlSlideMotion = spring<IntOffset>(dampingRatio = 0.9f, stiffnes
 
 @Composable
 fun HudCluster(
-    speedKmh: Int,
-    altitudeMeters: Int,
+    speed: Int,
+    speedUnit: String,
+    altitude: Int,
+    altitudeUnit: String,
     mapDirection: Double,
     isRecenterVisible: Boolean,
     isSearchDockFullExpanded: Boolean,
@@ -78,8 +80,8 @@ fun HudCluster(
         AnimatedVisibility(visible = !isSearchDockFullExpanded) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(verticalArrangement = Arrangement.spacedBy(BubbleGap)) {
-                    IndicatorBubble(value = altitudeMeters, unit = "m")
-                    IndicatorBubble(value = speedKmh, unit = "km/h")
+                    IndicatorBubble(value = altitude, unit = altitudeUnit)
+                    IndicatorBubble(value = speed, unit = speedUnit)
                 }
 
                 Spacer(modifier = Modifier.weight(1f))

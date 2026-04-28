@@ -52,6 +52,9 @@ import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AltitudeUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.SpeedUnit
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.toMapFocus
 import cz.miroslavpasek.pigeonnavigator.ui.components.BubbleSize
@@ -61,6 +64,7 @@ import cz.miroslavpasek.pigeonnavigator.ui.screens.NavigateScreen
 import cz.miroslavpasek.pigeonnavigator.ui.screens.SettingsScreen
 import cz.miroslavpasek.pigeonnavigator.ui.viewmodel.HomeViewModel
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.context.GlobalContext
 import kotlin.math.roundToInt
 
 @Composable
@@ -68,6 +72,8 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     val context = LocalContext.current
     val activity = context.findActivity()
     val state by vm.uiState.collectAsState()
+    val settingsRepository = remember { GlobalContext.get().get<AppSettingsRepository>() }
+    val appSettings by settingsRepository.settings.collectAsState()
     var mapDirection by remember { mutableStateOf(0.0) }
     var isAwayFromUserLocation by remember { mutableStateOf(false) }
     var resetNorthToken by remember { mutableIntStateOf(0) }
@@ -124,12 +130,13 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         }
     }
 
-    val altitudeMeters = state.location?.altitudeMeters?.roundToInt() ?: 0
-    val speedKmh = state.location
+    val altitude = state.location?.altitudeMeters?.toDisplayValue(appSettings.units.altitude) ?: 0
+    val altitudeUnit = appSettings.units.altitude.displayLabel()
+    val speed = state.location
         ?.speedMetersPerSecond
-        ?.times(3.6f)
-        ?.roundToInt()
+        ?.toDisplayValue(appSettings.units.speed)
         ?: 0
+    val speedUnit = appSettings.units.speed.displayLabel()
     val focusMap = { focus: SearchDockMapFocus ->
         mapFocus = focus
         mapFocusToken += 1
@@ -193,8 +200,10 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                 )
 
                 HudCluster(
-                    speedKmh = speedKmh,
-                    altitudeMeters = altitudeMeters,
+                    speed = speed,
+                    speedUnit = speedUnit,
+                    altitude = altitude,
+                    altitudeUnit = altitudeUnit,
                     mapDirection = mapDirection,
                     isRecenterVisible = isAwayFromUserLocation,
                     isSearchDockFullExpanded = isSearchDockFullExpanded,
@@ -256,6 +265,32 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
             }
         }
     }
+}
+
+private fun Double.toDisplayValue(unit: AltitudeUnit): Int = when (unit) {
+    AltitudeUnit.Feet -> (this * 3.280839895).roundToInt()
+    AltitudeUnit.Meters -> roundToInt()
+}
+
+private fun Float.toDisplayValue(unit: SpeedUnit): Int = toDouble().toDisplayValue(unit)
+
+private fun Double.toDisplayValue(unit: SpeedUnit): Int = when (unit) {
+    SpeedUnit.Knots -> (this * 1.943844492).roundToInt()
+    SpeedUnit.KilometersPerHour -> (this * 3.6).roundToInt()
+    SpeedUnit.MilesPerHour -> (this * 2.236936292).roundToInt()
+    SpeedUnit.MetersPerSecond -> roundToInt()
+}
+
+private fun AltitudeUnit.displayLabel(): String = when (this) {
+    AltitudeUnit.Feet -> "ft"
+    AltitudeUnit.Meters -> "m"
+}
+
+private fun SpeedUnit.displayLabel(): String = when (this) {
+    SpeedUnit.Knots -> "kt"
+    SpeedUnit.KilometersPerHour -> "km/h"
+    SpeedUnit.MilesPerHour -> "mph"
+    SpeedUnit.MetersPerSecond -> "m/s"
 }
 
 private fun Airspace.toMapFocus(): SearchDockMapFocus {

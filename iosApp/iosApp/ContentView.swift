@@ -35,11 +35,11 @@ struct ContentView: View {
     private let hudClusterGapFromSearchBar: CGFloat = 12
     
     var body: some View {
-        let speedKmh = locationSpeedMetersPerSecond.isFinite
-            ? Int((max(locationSpeedMetersPerSecond, 0) * 3.6).rounded())
+        let speed = locationSpeedMetersPerSecond.isFinite
+            ? displaySpeed(metersPerSecond: max(locationSpeedMetersPerSecond, 0), unit: appSettings.speedUnit)
             : 0
-        let altitudeMeters = locationAltitudeMeters.isFinite
-            ? Int(locationAltitudeMeters.rounded())
+        let altitude = locationAltitudeMeters.isFinite
+            ? displayAltitude(meters: locationAltitudeMeters, unit: appSettings.altitudeUnit)
             : 0
 
         GeometryReader { proxy in
@@ -171,8 +171,10 @@ struct ContentView: View {
                 
                 if hudSize != .full {
                     HUDCluster(
-                        speed: speedKmh,
-                        altitude: altitudeMeters,
+                        speed: speed,
+                        speedUnit: speedUnitLabel(appSettings.speedUnit),
+                        altitude: altitude,
+                        altitudeUnit: altitudeUnitLabel(appSettings.altitudeUnit),
                         mapDirection: mapDirection,
                         isRecenterVisible: isAwayFromUserLocation,
                         onCompassTap: { resetNorthToken += 1 },
@@ -243,6 +245,58 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(4)
             }
+        }
+    }
+
+    private func displayAltitude(meters: Double, unit: DomainAltitudeUnit) -> Int {
+        switch unit {
+        case .feet:
+            return Int((meters * 3.280839895).rounded())
+        case .meters:
+            return Int(meters.rounded())
+        default:
+            return Int(meters.rounded())
+        }
+    }
+
+    private func displaySpeed(metersPerSecond: Double, unit: DomainSpeedUnit) -> Int {
+        switch unit {
+        case .knots:
+            return Int((metersPerSecond * 1.943844492).rounded())
+        case .kilometersperhour:
+            return Int((metersPerSecond * 3.6).rounded())
+        case .milesperhour:
+            return Int((metersPerSecond * 2.236936292).rounded())
+        case .meterspersecond:
+            return Int(metersPerSecond.rounded())
+        default:
+            return Int((metersPerSecond * 3.6).rounded())
+        }
+    }
+
+    private func altitudeUnitLabel(_ unit: DomainAltitudeUnit) -> String {
+        switch unit {
+        case .feet:
+            return "ft"
+        case .meters:
+            return "m"
+        default:
+            return "m"
+        }
+    }
+
+    private func speedUnitLabel(_ unit: DomainSpeedUnit) -> String {
+        switch unit {
+        case .knots:
+            return "kt"
+        case .kilometersperhour:
+            return "km/h"
+        case .milesperhour:
+            return "mph"
+        case .meterspersecond:
+            return "m/s"
+        default:
+            return "km/h"
         }
     }
 

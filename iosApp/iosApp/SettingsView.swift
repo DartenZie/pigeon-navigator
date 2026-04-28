@@ -10,14 +10,7 @@ struct SettingsView: View {
     @ObservedObject var viewModel: AppSettingsViewModelWrapper
     @Environment(\.dismiss) private var dismiss
 
-    // Local drafts for slider values so we only push to the repository on
-    // edit-end events (matches the Android screen's `onValueChangeFinished`).
-    @State private var ttcDraft: Double = 60
-    @State private var debounceDraft: Double = 300
-    @State private var minLengthDraft: Double = 2
-    @State private var maxSpeedDraft: Double = 300
-    @State private var deltaDraft: Double = 2.5
-    @State private var bearingDraft: Double = 4
+    @State private var ttcDraft: String = "60"
 
     var body: some View {
         NavigationView {
@@ -70,103 +63,14 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("Terrain warning")) {
-                    HStack {
-                        Text("Time-to-collision")
-                        Spacer()
-                        Text("\(Int(ttcDraft.rounded())) s")
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $ttcDraft,
-                        in: 5...600,
-                        step: 1,
-                        onEditingChanged: { editing in
-                            if !editing {
-                                viewModel.updateTimeToCollisionWarningSeconds(
-                                    Int32(ttcDraft.rounded())
-                                )
-                            }
+                    TextField("Seconds", text: $ttcDraft)
+                        .keyboardType(.numberPad)
+                        .onChange(of: ttcDraft) { newValue in
+                            commitTimeToCollision(newValue)
                         }
-                    )
-                }
-
-                Section(header: Text("Search")) {
-                    HStack {
-                        Text("Debounce")
-                        Spacer()
-                        Text("\(Int(debounceDraft.rounded())) ms")
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $debounceDraft,
-                        in: 0...2000,
-                        step: 10,
-                        onEditingChanged: { editing in
-                            if !editing { commitSearch() }
-                        }
-                    )
-
-                    HStack {
-                        Text("Minimum query length")
-                        Spacer()
-                        Text("\(Int(minLengthDraft.rounded()))")
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $minLengthDraft,
-                        in: 1...10,
-                        step: 1,
-                        onEditingChanged: { editing in
-                            if !editing { commitSearch() }
-                        }
-                    )
-                }
-
-                Section(header: Text("Map")) {
-                    HStack {
-                        Text("Max dynamic-zoom speed")
-                        Spacer()
-                        Text("\(Int(maxSpeedDraft.rounded())) km/h")
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $maxSpeedDraft,
-                        in: 50...1500,
-                        step: 5,
-                        onEditingChanged: { editing in
-                            if !editing { commitMap() }
-                        }
-                    )
-
-                    HStack {
-                        Text("Max speed zoom-out delta")
-                        Spacer()
-                        Text(String(format: "%.2f", deltaDraft))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $deltaDraft,
-                        in: 0...8,
-                        step: 0.05,
-                        onEditingChanged: { editing in
-                            if !editing { commitMap() }
-                        }
-                    )
-
-                    HStack {
-                        Text("Bearing update threshold")
-                        Spacer()
-                        Text(String(format: "%.1f°", bearingDraft))
-                            .foregroundStyle(.secondary)
-                    }
-                    Slider(
-                        value: $bearingDraft,
-                        in: 0...45,
-                        step: 0.5,
-                        onEditingChanged: { editing in
-                            if !editing { commitMap() }
-                        }
-                    )
+                    Text("5-600 seconds")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Settings")
@@ -178,36 +82,21 @@ struct SettingsView: View {
             }
             .onAppear { syncDraftsFromViewModel() }
             .onChange(of: viewModel.timeToCollisionWarningSeconds) { _ in syncDraftsFromViewModel() }
-            .onChange(of: viewModel.searchDebounceMillis) { _ in syncDraftsFromViewModel() }
-            .onChange(of: viewModel.minimumQueryLength) { _ in syncDraftsFromViewModel() }
-            .onChange(of: viewModel.maxDynamicZoomSpeedKmh) { _ in syncDraftsFromViewModel() }
-            .onChange(of: viewModel.maxSpeedZoomOutDelta) { _ in syncDraftsFromViewModel() }
-            .onChange(of: viewModel.bearingUpdateThresholdDegrees) { _ in syncDraftsFromViewModel() }
         }
     }
 
     private func syncDraftsFromViewModel() {
-        ttcDraft = Double(viewModel.timeToCollisionWarningSeconds)
-        debounceDraft = Double(viewModel.searchDebounceMillis)
-        minLengthDraft = Double(viewModel.minimumQueryLength)
-        maxSpeedDraft = viewModel.maxDynamicZoomSpeedKmh
-        deltaDraft = viewModel.maxSpeedZoomOutDelta
-        bearingDraft = viewModel.bearingUpdateThresholdDegrees
+        ttcDraft = String(viewModel.timeToCollisionWarningSeconds)
     }
 
-    private func commitSearch() {
-        viewModel.updateSearchPreferences(
-            searchDebounceMillis: Int64(debounceDraft.rounded()),
-            minimumQueryLength: Int32(minLengthDraft.rounded())
-        )
-    }
-
-    private func commitMap() {
-        viewModel.updateMapPreferences(
-            maxDynamicZoomSpeedKmh: maxSpeedDraft,
-            maxSpeedZoomOutDelta: deltaDraft,
-            bearingUpdateThresholdDegrees: bearingDraft
-        )
+    private func commitTimeToCollision(_ value: String) {
+        let digitsOnly = value.filter(\.isNumber)
+        if digitsOnly != value {
+            ttcDraft = digitsOnly
+            return
+        }
+        guard let seconds = Int32(digitsOnly), (5...600).contains(seconds) else { return }
+        viewModel.updateTimeToCollisionWarningSeconds(seconds)
     }
 
     // Static option lists so SwiftUI Pickers can render stable rows. Tuples carry

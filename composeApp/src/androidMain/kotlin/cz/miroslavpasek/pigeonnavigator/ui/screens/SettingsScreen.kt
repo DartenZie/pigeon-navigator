@@ -11,15 +11,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -31,31 +29,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AltitudeUnit
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
 import cz.miroslavpasek.pigeonnavigator.domain.settings.DistanceUnit
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MAX_BEARING_UPDATE_THRESHOLD_DEGREES
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MAX_MAX_DYNAMIC_ZOOM_SPEED_KMH
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MAX_MAX_SPEED_ZOOM_OUT_DELTA
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MAX_MINIMUM_SEARCH_QUERY_LENGTH
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MAX_SEARCH_DEBOUNCE_MILLIS
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MAX_TIME_TO_COLLISION_WARNING_SECONDS
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_BEARING_UPDATE_THRESHOLD_DEGREES
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_MAX_DYNAMIC_ZOOM_SPEED_KMH
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_MAX_SPEED_ZOOM_OUT_DELTA
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_MINIMUM_SEARCH_QUERY_LENGTH
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_SEARCH_DEBOUNCE_MILLIS
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_TIME_TO_COLLISION_WARNING_SECONDS
-import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
-import cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.SpeedUnit
 import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import kotlinx.coroutines.launch
 import org.koin.core.context.GlobalContext
-import java.util.Locale
-import kotlin.math.roundToInt
 
 /**
  * Full-screen settings editor backed by [AppSettingsRepository].
@@ -106,24 +92,6 @@ fun SettingsScreen(
                     warning = settings.warning,
                     onWarningChange = { newWarning ->
                         scope.launch { repository.updateWarningPreferences(newWarning) }
-                    }
-                )
-
-                HorizontalDivider()
-
-                SearchSection(
-                    search = settings.search,
-                    onSearchChange = { newSearch ->
-                        scope.launch { repository.updateSearchPreferences(newSearch) }
-                    }
-                )
-
-                HorizontalDivider()
-
-                MapSection(
-                    map = settings.map,
-                    onMapChange = { newMap ->
-                        scope.launch { repository.updateMapPreferences(newMap) }
                     }
                 )
             }
@@ -188,150 +156,37 @@ private fun WarningSection(
     onWarningChange: (WarningPreferences) -> Unit,
 ) {
     var draft by remember(warning.timeToCollisionWarningSeconds) {
-        mutableStateOf(warning.timeToCollisionWarningSeconds.toFloat())
+        mutableStateOf(warning.timeToCollisionWarningSeconds.toString())
     }
+    val parsed = draft.toIntOrNull()
+    val isError = parsed == null || parsed !in
+        MIN_TIME_TO_COLLISION_WARNING_SECONDS..MAX_TIME_TO_COLLISION_WARNING_SECONDS
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionHeader("Terrain warning")
-        Text(
-            text = "Time-to-collision threshold: ${draft.roundToInt()} s",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
+        OutlinedTextField(
             value = draft,
-            onValueChange = { draft = it },
-            onValueChangeFinished = {
-                onWarningChange(
-                    WarningPreferences(timeToCollisionWarningSeconds = draft.roundToInt())
+            onValueChange = { value ->
+                val digitsOnly = value.filter(Char::isDigit)
+                draft = digitsOnly
+                digitsOnly.toIntOrNull()?.let { seconds ->
+                    if (seconds in MIN_TIME_TO_COLLISION_WARNING_SECONDS..MAX_TIME_TO_COLLISION_WARNING_SECONDS) {
+                        onWarningChange(WarningPreferences(timeToCollisionWarningSeconds = seconds))
+                    }
+                }
+            },
+            label = { Text("Time-to-collision") },
+            suffix = { Text("s") },
+            supportingText = {
+                Text(
+                    "${MIN_TIME_TO_COLLISION_WARNING_SECONDS}-" +
+                        "${MAX_TIME_TO_COLLISION_WARNING_SECONDS} seconds"
                 )
             },
-            valueRange = MIN_TIME_TO_COLLISION_WARNING_SECONDS.toFloat()..
-                MAX_TIME_TO_COLLISION_WARNING_SECONDS.toFloat(),
+            isError = isError,
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun SearchSection(
-    search: SearchPreferences,
-    onSearchChange: (SearchPreferences) -> Unit,
-) {
-    var debounceDraft by remember(search.searchDebounceMillis) {
-        mutableStateOf(search.searchDebounceMillis.toFloat())
-    }
-    var minLengthDraft by remember(search.minimumQueryLength) {
-        mutableStateOf(search.minimumQueryLength.toFloat())
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader("Search")
-        Text(
-            text = "Debounce: ${debounceDraft.roundToInt()} ms",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
-            value = debounceDraft,
-            onValueChange = { debounceDraft = it },
-            onValueChangeFinished = {
-                onSearchChange(
-                    search.copy(searchDebounceMillis = debounceDraft.roundToInt().toLong())
-                )
-            },
-            valueRange = MIN_SEARCH_DEBOUNCE_MILLIS.toFloat()..
-                MAX_SEARCH_DEBOUNCE_MILLIS.toFloat(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Text(
-            text = "Minimum query length: ${minLengthDraft.roundToInt()}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
-            value = minLengthDraft,
-            onValueChange = { minLengthDraft = it },
-            onValueChangeFinished = {
-                onSearchChange(
-                    search.copy(minimumQueryLength = minLengthDraft.roundToInt())
-                )
-            },
-            valueRange = MIN_MINIMUM_SEARCH_QUERY_LENGTH.toFloat()..
-                MAX_MINIMUM_SEARCH_QUERY_LENGTH.toFloat(),
-            steps = MAX_MINIMUM_SEARCH_QUERY_LENGTH - MIN_MINIMUM_SEARCH_QUERY_LENGTH - 1,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
-
-@Composable
-private fun MapSection(
-    map: MapPreferences,
-    onMapChange: (MapPreferences) -> Unit,
-) {
-    var maxSpeedDraft by remember(map.maxDynamicZoomSpeedKmh) {
-        mutableStateOf(map.maxDynamicZoomSpeedKmh.toFloat())
-    }
-    var deltaDraft by remember(map.maxSpeedZoomOutDelta) {
-        mutableStateOf(map.maxSpeedZoomOutDelta.toFloat())
-    }
-    var bearingDraft by remember(map.bearingUpdateThresholdDegrees) {
-        mutableStateOf(map.bearingUpdateThresholdDegrees.toFloat())
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionHeader("Map")
-
-        Text(
-            text = "Max dynamic-zoom speed: ${maxSpeedDraft.roundToInt()} km/h",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
-            value = maxSpeedDraft,
-            onValueChange = { maxSpeedDraft = it },
-            onValueChangeFinished = {
-                onMapChange(map.copy(maxDynamicZoomSpeedKmh = maxSpeedDraft.toDouble()))
-            },
-            valueRange = MIN_MAX_DYNAMIC_ZOOM_SPEED_KMH.toFloat()..
-                MAX_MAX_DYNAMIC_ZOOM_SPEED_KMH.toFloat(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Text(
-            text = "Max speed zoom-out delta: ${String.format(Locale.US, "%.2f", deltaDraft)}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
-            value = deltaDraft,
-            onValueChange = { deltaDraft = it },
-            onValueChangeFinished = {
-                onMapChange(map.copy(maxSpeedZoomOutDelta = deltaDraft.toDouble()))
-            },
-            valueRange = MIN_MAX_SPEED_ZOOM_OUT_DELTA.toFloat()..
-                MAX_MAX_SPEED_ZOOM_OUT_DELTA.toFloat(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Text(
-            text = "Bearing update threshold: ${String.format(Locale.US, "%.1f", bearingDraft)}\u00B0",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
-            value = bearingDraft,
-            onValueChange = { bearingDraft = it },
-            onValueChangeFinished = {
-                onMapChange(map.copy(bearingUpdateThresholdDegrees = bearingDraft.toDouble()))
-            },
-            valueRange = MIN_BEARING_UPDATE_THRESHOLD_DEGREES.toFloat()..
-                MAX_BEARING_UPDATE_THRESHOLD_DEGREES.toFloat(),
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        AssistChip(
-            onClick = {
-                onMapChange(MapPreferences())
-            },
-            label = { Text("Reset to defaults") },
-            colors = AssistChipDefaults.assistChipColors()
         )
     }
 }
