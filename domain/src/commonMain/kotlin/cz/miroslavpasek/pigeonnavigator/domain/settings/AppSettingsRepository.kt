@@ -34,4 +34,24 @@ interface AppSettingsRepository {
     suspend fun updateWarningPreferences(
         warning: WarningPreferences
     ): AppResult<Unit, Failure>
+
+    /**
+     * Persists [search] and updates [settings] with the new value.
+     *
+     * Returns [Failure.Validation] when any field falls outside its supported range and avoids
+     * persisting the invalid value.
+     */
+    suspend fun updateSearchPreferences(
+        search: SearchPreferences
+    ): AppResult<Unit, Failure>
+
+    /**
+     * Persists [map] and updates [settings] with the new value.
+     *
+     * Returns [Failure.Validation] when any field falls outside its supported range and avoids
+     * persisting the invalid value.
+     */
+    suspend fun updateMapPreferences(
+        map: MapPreferences
+    ): AppResult<Unit, Failure>
 }

@@ -11,6 +11,8 @@ import cz.miroslavpasek.pigeonnavigator.data.settings.di.settingsDataModule
 import cz.miroslavpasek.pigeonnavigator.data.terrain.di.terrainDataModule
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import cz.miroslavpasek.pigeonnavigator.platform.IosKeyValueSettingsStore
@@ -182,6 +184,50 @@ class SettingsHandle(
         scope.launch {
             val result = repository.updateWarningPreferences(
                 WarningPreferences(timeToCollisionWarningSeconds = seconds)
+            )
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /**
+     * Forwards a search-preferences update (debounce + minimum query length) to the repository.
+     *
+     * Returns `true` when persistence succeeded; validation failures resolve to `false`.
+     */
+    fun updateSearchPreferences(
+        searchDebounceMillis: Long,
+        minimumQueryLength: Int,
+        onResult: (Boolean) -> Unit
+    ) {
+        scope.launch {
+            val result = repository.updateSearchPreferences(
+                SearchPreferences(
+                    searchDebounceMillis = searchDebounceMillis,
+                    minimumQueryLength = minimumQueryLength
+                )
+            )
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /**
+     * Forwards a map-preferences update to the repository.
+     *
+     * Returns `true` when persistence succeeded; validation failures resolve to `false`.
+     */
+    fun updateMapPreferences(
+        maxDynamicZoomSpeedKmh: Double,
+        maxSpeedZoomOutDelta: Double,
+        bearingUpdateThresholdDegrees: Double,
+        onResult: (Boolean) -> Unit
+    ) {
+        scope.launch {
+            val result = repository.updateMapPreferences(
+                MapPreferences(
+                    maxDynamicZoomSpeedKmh = maxDynamicZoomSpeedKmh,
+                    maxSpeedZoomOutDelta = maxSpeedZoomOutDelta,
+                    bearingUpdateThresholdDegrees = bearingUpdateThresholdDegrees
+                )
             )
             onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
         }

@@ -53,13 +53,14 @@ import org.maplibre.geojson.LineString
 import org.maplibre.geojson.Point
 import org.maplibre.geojson.Polygon
 import org.maplibre.android.geometry.LatLngBounds
+import androidx.compose.runtime.collectAsState
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
+import org.koin.core.context.GlobalContext
 
 private const val DEFAULT_ZOOM = 10.5
-private const val MAX_DYNAMIC_ZOOM_SPEED_KMH = 300.0
-private const val MAX_SPEED_ZOOM_OUT_DELTA = 2.5
 private const val RECENTER_DISTANCE_METERS = 12f
 private const val AWAY_FROM_USER_DISTANCE_METERS = 24f
-private const val BEARING_UPDATE_THRESHOLD_DEGREES = 4.0
 private const val MIN_MOVEMENT_SPEED_MPS = 0.8f
 private const val TERRAIN_SOURCE_ID = "terrain-hazard-source"
 private const val TERRAIN_YELLOW_LAYER_ID = "terrain-hazard-near-layer"
@@ -143,7 +144,11 @@ fun NavigateScreen(
 
     latestLocation = location
 
-    val dynamicDefaultZoom = resolveDynamicDefaultZoom(location)
+    val settingsRepository = remember { GlobalContext.get().get<AppSettingsRepository>() }
+    val appSettings by settingsRepository.settings.collectAsState()
+    val mapPreferences = appSettings.map
+
+    val dynamicDefaultZoom = resolveDynamicDefaultZoom(location, mapPreferences)
 
     val mapView = remember {
         MapView(context).apply {
@@ -357,7 +362,7 @@ fun NavigateScreen(
                     )
 
                     val shouldRecenter = distanceBuffer[0] >= RECENTER_DISTANCE_METERS
-                    val shouldRotate = bearingChange >= BEARING_UPDATE_THRESHOLD_DEGREES
+                    val shouldRotate = bearingChange >= mapPreferences.bearingUpdateThresholdDegrees
                     val followZoom = pendingFollowZoom ?: map.cameraPosition.zoom
 
                     if (shouldRecenter || shouldRotate) {
@@ -768,12 +773,16 @@ private fun resolveTrackingBearing(currentBearing: Double, location: FlightLocat
     return if (isMoving && isBearingValid) rawBearing else currentBearing
 }
 
-private fun resolveDynamicDefaultZoom(location: FlightLocation?): Double {
+private fun resolveDynamicDefaultZoom(
+    location: FlightLocation?,
+    mapPreferences: MapPreferences
+): Double {
+    val maxSpeedKmh = mapPreferences.maxDynamicZoomSpeedKmh
     val speedKmh = ((location?.speedMetersPerSecond ?: 0f).coerceAtLeast(0f) * 3.6).coerceAtMost(
-        MAX_DYNAMIC_ZOOM_SPEED_KMH
+        maxSpeedKmh
     )
-    val progress = speedKmh / MAX_DYNAMIC_ZOOM_SPEED_KMH
-    return DEFAULT_ZOOM - progress * MAX_SPEED_ZOOM_OUT_DELTA
+    val progress = if (maxSpeedKmh > 0.0) speedKmh / maxSpeedKmh else 0.0
+    return DEFAULT_ZOOM - progress * mapPreferences.maxSpeedZoomOutDelta
 }
 
 private fun angularDistanceDegrees(from: Double, to: Double): Double {

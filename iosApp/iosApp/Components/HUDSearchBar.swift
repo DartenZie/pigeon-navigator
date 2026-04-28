@@ -54,6 +54,8 @@ struct HUDSearchBar: View {
     var onMapTapAirspaceTap: (MapTapAirspaceItem) -> Void = { _ in }
     var onMapTapNavaidTap: (MapTapNavaidItem) -> Void = { _ in }
     var onAddToRouteTap: () -> Void = {}
+    var minimumSearchQueryLength: Int = 2
+    var searchDebounceDelay: TimeInterval = 0.3
 
     private var size: HUDSize { hudSize }
     @GestureState private var dragOffset: CGFloat = 0
@@ -63,8 +65,6 @@ struct HUDSearchBar: View {
     private let handleWidth: CGFloat = 36
     private let handleHeight: CGFloat = 5
     private let searchRowHeight: CGFloat = 48
-    private let minimumSearchQueryLength = 2
-    private let searchDebounceDelay: TimeInterval = 0.35
 
     var body: some View {
         GeometryReader { geo in
@@ -228,6 +228,7 @@ struct HUDSearchBar: View {
         case .search:
             HUDSearchSearchPage(
                 dock: dock,
+                minimumQueryLength: minimumSearchQueryLength,
                 onResultTap: onSearchResultTap,
                 onAddToRouteTap: onAddToRouteTap
             )
