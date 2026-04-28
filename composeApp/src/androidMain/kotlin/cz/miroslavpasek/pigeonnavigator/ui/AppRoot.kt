@@ -61,7 +61,7 @@ import cz.miroslavpasek.pigeonnavigator.ui.components.BubbleSize
 import cz.miroslavpasek.pigeonnavigator.ui.components.HudCluster
 import cz.miroslavpasek.pigeonnavigator.ui.components.CircularActionButton
 import cz.miroslavpasek.pigeonnavigator.ui.screens.NavigateScreen
-import cz.miroslavpasek.pigeonnavigator.ui.screens.SettingsScreen
+import cz.miroslavpasek.pigeonnavigator.ui.settings.screen.SettingsScreen
 import cz.miroslavpasek.pigeonnavigator.ui.viewmodel.HomeViewModel
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.context.GlobalContext
