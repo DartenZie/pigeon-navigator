@@ -3,6 +3,7 @@ import Shared
 
 struct HUDSearchSearchPage: View {
     @ObservedObject var dock: SearchDockViewModelWrapper
+    var minimumQueryLength: Int = 2
     var onResultTap: (SearchDockResultViewItem) -> Void = { _ in }
     var onAddToRouteTap: () -> Void = {}
 
@@ -44,7 +45,7 @@ struct HUDSearchSearchPage: View {
         }
 
         if dock.results.isEmpty {
-            if dock.query.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !dock.isSearching {
+            if dock.query.trimmingCharacters(in: .whitespacesAndNewlines).count >= minimumQueryLength && !dock.isSearching {
                 Text("No search results")
                     .font(.footnote)
                     .foregroundStyle(.secondary)

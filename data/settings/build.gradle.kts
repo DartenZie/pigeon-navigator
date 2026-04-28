@@ -1,0 +1,37 @@
+plugins {
+    alias(libs.plugins.kotlinMultiplatform)
+    id("com.android.kotlin.multiplatform.library")
+}
+
+kotlin {
+    androidLibrary {
+        namespace = "cz.miroslavpasek.pigeonnavigator.data.settings"
+        compileSdk = libs.versions.android.compileSdk.get().toInt()
+        minSdk = libs.versions.android.minSdk.get().toInt()
+    }
+
+    listOf(
+        iosArm64(),
+        iosX64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "DataSettings"
+            isStatic = true
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(projects.core.util)
+            implementation(projects.core.platform)
+            implementation(projects.domain)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.koin.core)
+        }
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+        }
+    }
+}

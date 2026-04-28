@@ -3,10 +3,19 @@ package cz.miroslavpasek.pigeonnavigator.di
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupCoordinator
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvider
+import cz.miroslavpasek.pigeonnavigator.core.platform.settings.KeyValueSettingsStore
 import cz.miroslavpasek.pigeonnavigator.data.aviation.AviationPackageBootstrapper
 import cz.miroslavpasek.pigeonnavigator.data.aviation.di.aviationDataModule
 import cz.miroslavpasek.pigeonnavigator.data.search.di.searchDataModule
+import cz.miroslavpasek.pigeonnavigator.data.settings.di.settingsDataModule
 import cz.miroslavpasek.pigeonnavigator.data.terrain.di.terrainDataModule
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
+import cz.miroslavpasek.pigeonnavigator.platform.IosKeyValueSettingsStore
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.GeoPoint
 import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
@@ -75,6 +84,10 @@ private val iosLocationModule = module {
     }
 }
 
+private val iosSettingsModule = module {
+    single<KeyValueSettingsStore> { IosKeyValueSettingsStore() }
+}
+
 /**
  * Starts Koin with shared and search feature modules for iOS.
  */
@@ -84,6 +97,8 @@ fun initKoin() {
             sharedModule,
             iosDispatcherModule,
             iosLocationModule,
+            iosSettingsModule,
+            settingsDataModule(),
             iosMapTapLookupModule,
             aviationDataModule(),
             searchDataModule(),
@@ -116,6 +131,113 @@ class KoinHelper {
 
     /** Returns a lifecycle-managed bridge over [SearchDockStore] for Swift UI layers. */
     fun getSearchDockHandle(): SearchDockHandle = SearchDockHandle(KoinPlatform.getKoin().get())
+
+    /** Returns a lifecycle-managed bridge over [AppSettingsRepository] for Swift UI layers. */
+    fun getSettingsHandle(): SettingsHandle = SettingsHandle(KoinPlatform.getKoin().get())
+}
+
+/**
+ * Bridges [AppSettingsRepository] flows and update calls to a Swift-friendly API surface.
+ *
+ * Provides start/stop semantics so Swift can subscribe and unsubscribe lifecycle-aware,
+ * along with grouped update entry points that match the domain repository contract.
+ */
+class SettingsHandle(
+    private val repository: AppSettingsRepository
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var stateJob: Job? = null
+
+    /** Starts collecting settings updates until [stopSettings] or [close] is called. */
+    fun startSettings(onEach: (AppSettings) -> Unit) {
+        if (stateJob != null) return
+        stateJob = scope.launch {
+            repository.settings.collect { onEach(it) }
+        }
+    }
+
+    /** Stops settings collection started by [startSettings]. */
+    fun stopSettings() {
+        stateJob?.cancel()
+        stateJob = null
+    }
+
+    /**
+     * Forwards a unit-preference update to the shared repository.
+     *
+     * Returns `true` when persistence succeeded.
+     */
+    fun updateUnits(units: UnitPreferences, onResult: (Boolean) -> Unit) {
+        scope.launch {
+            val result = repository.updateUnits(units)
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /**
+     * Forwards a time-to-collision threshold update to the shared repository.
+     *
+     * Returns `true` when persistence succeeded; validation failures resolve to `false`
+     * and leave the persisted value unchanged.
+     */
+    fun updateTimeToCollisionWarningSeconds(seconds: Int, onResult: (Boolean) -> Unit) {
+        scope.launch {
+            val result = repository.updateWarningPreferences(
+                WarningPreferences(timeToCollisionWarningSeconds = seconds)
+            )
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /**
+     * Forwards a search-preferences update (debounce + minimum query length) to the repository.
+     *
+     * Returns `true` when persistence succeeded; validation failures resolve to `false`.
+     */
+    fun updateSearchPreferences(
+        searchDebounceMillis: Long,
+        minimumQueryLength: Int,
+        onResult: (Boolean) -> Unit
+    ) {
+        scope.launch {
+            val result = repository.updateSearchPreferences(
+                SearchPreferences(
+                    searchDebounceMillis = searchDebounceMillis,
+                    minimumQueryLength = minimumQueryLength
+                )
+            )
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /**
+     * Forwards a map-preferences update to the repository.
+     *
+     * Returns `true` when persistence succeeded; validation failures resolve to `false`.
+     */
+    fun updateMapPreferences(
+        maxDynamicZoomSpeedKmh: Double,
+        maxSpeedZoomOutDelta: Double,
+        bearingUpdateThresholdDegrees: Double,
+        onResult: (Boolean) -> Unit
+    ) {
+        scope.launch {
+            val result = repository.updateMapPreferences(
+                MapPreferences(
+                    maxDynamicZoomSpeedKmh = maxDynamicZoomSpeedKmh,
+                    maxSpeedZoomOutDelta = maxSpeedZoomOutDelta,
+                    bearingUpdateThresholdDegrees = bearingUpdateThresholdDegrees
+                )
+            )
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /** Stops active jobs. */
+    fun close() {
+        stopSettings()
+        scope.cancel()
+    }
 }
 
 /**

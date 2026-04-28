@@ -63,24 +63,26 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
-import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import org.koin.core.context.GlobalContext
 
 private enum class AndroidSearchDockSize { Bar, Half, Full }
 
 private val SearchDockBarHeight = 64.dp
 private val SearchDockHalfHeight = 320.dp
 private const val SearchDockFlingVelocityThreshold = 1600f
-private const val SearchDockSearchDebounceMillis = 300L
-private const val SearchDockMinimumSearchQueryLength = 2
 
 @Composable
 fun SearchDock(
@@ -109,6 +111,9 @@ fun SearchDock(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     var isSearchFocused by remember { mutableStateOf(false) }
+    val settingsRepository = remember { GlobalContext.get().get<AppSettingsRepository>() }
+    val appSettings by settingsRepository.settings.collectAsState()
+    val searchPreferences = appSettings.search
     var dockSize by remember {
         mutableStateOf(if (state.isExpanded) AndroidSearchDockSize.Half else AndroidSearchDockSize.Bar)
     }
@@ -128,12 +133,12 @@ fun SearchDock(
         }
     }
 
-    LaunchedEffect(state.searchQuery, isSearchFocused) {
+    LaunchedEffect(state.searchQuery, isSearchFocused, searchPreferences) {
         val trimmedQuery = state.searchQuery.trim()
-        if (!isSearchFocused || trimmedQuery.length < SearchDockMinimumSearchQueryLength) {
+        if (!isSearchFocused || trimmedQuery.length < searchPreferences.minimumQueryLength) {
             return@LaunchedEffect
         }
-        delay(SearchDockSearchDebounceMillis)
+        delay(searchPreferences.searchDebounceMillis)
         onSubmitSearch()
     }
 

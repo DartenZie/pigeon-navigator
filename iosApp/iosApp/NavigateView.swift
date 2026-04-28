@@ -28,6 +28,9 @@ struct NavigateView: UIViewRepresentable {
     var recenterOnUserToken: Int = 0
     var mapFocus: MapCameraFocus? = nil
     var mapFocusToken: Int = 0
+    var bearingUpdateThresholdDegreesOverride: Double? = nil
+    var maxDynamicZoomSpeedKmhOverride: Double? = nil
+    var maxSpeedZoomOutDeltaOverride: Double? = nil
     private let recenterDistanceMeters: CLLocationDistance = 12
     private let awayFromUserDistanceMeters: CLLocationDistance = 24
     private let userLocationDotSourceId = "user-location-dot-source"
@@ -48,13 +51,27 @@ struct NavigateView: UIViewRepresentable {
     private let userGuidanceMaxMinuteMarks = 12
     private let userGuidanceTickMarkLengthMeters = 180.0
     private let userGuidanceMinSpeedMetersPerSecond = 0.8
-    private let bearingUpdateThresholdDegrees = 4.0
-    private let maxDynamicZoomSpeedKmh = 300.0
-    private let maxSpeedZoomOutDelta = 2.5
+    private let bearingUpdateThresholdDegreesDefault = 4.0
+    private let maxDynamicZoomSpeedKmhDefault = 300.0
+    private let maxSpeedZoomOutDeltaDefault = 2.5
+
+    private var bearingUpdateThresholdDegrees: Double {
+        bearingUpdateThresholdDegreesOverride ?? bearingUpdateThresholdDegreesDefault
+    }
+
+    private var maxDynamicZoomSpeedKmh: Double {
+        maxDynamicZoomSpeedKmhOverride ?? maxDynamicZoomSpeedKmhDefault
+    }
+
+    private var maxSpeedZoomOutDelta: Double {
+        maxSpeedZoomOutDeltaOverride ?? maxSpeedZoomOutDeltaDefault
+    }
 
     private var dynamicDefaultZoomLevel: Double {
+        let maxSpeed = maxDynamicZoomSpeedKmh
+        guard maxSpeed > 0 else { return zoomLevel }
         let speedKmh = max(locationSpeedMetersPerSecond, 0) * 3.6
-        let progress = min(speedKmh / maxDynamicZoomSpeedKmh, 1)
+        let progress = min(speedKmh / maxSpeed, 1)
         return zoomLevel - progress * maxSpeedZoomOutDelta
     }
     

@@ -3,10 +3,17 @@ package cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.internal
 import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvider
 import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.DetectTerrainConflictUseCase
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainRepository
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainWarningLevel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningEffect
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningReducer
@@ -34,7 +41,8 @@ class RealTerrainWarningStoreTest {
                 }
             ),
             reducer = TerrainWarningReducer(),
-            dispatcherProvider = TestDispatcherProvider(dispatcher)
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            appSettingsRepository = FakeAppSettingsRepository()
         )
 
         val effectDeferred = async { store.effects.first() }
@@ -72,7 +80,8 @@ class RealTerrainWarningStoreTest {
                 }
             ),
             reducer = TerrainWarningReducer(),
-            dispatcherProvider = TestDispatcherProvider(dispatcher)
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            appSettingsRepository = FakeAppSettingsRepository()
         )
 
         store.send(
@@ -100,7 +109,8 @@ class RealTerrainWarningStoreTest {
         val store = RealTerrainWarningStore(
             detectTerrainConflictUseCase = DetectTerrainConflictUseCase(terrainRepository = repository),
             reducer = TerrainWarningReducer(),
-            dispatcherProvider = TestDispatcherProvider(dispatcher)
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            appSettingsRepository = FakeAppSettingsRepository()
         )
 
         store.send(
@@ -141,7 +151,8 @@ class RealTerrainWarningStoreTest {
         val store = RealTerrainWarningStore(
             detectTerrainConflictUseCase = DetectTerrainConflictUseCase(terrainRepository = repository),
             reducer = TerrainWarningReducer(),
-            dispatcherProvider = TestDispatcherProvider(dispatcher)
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            appSettingsRepository = FakeAppSettingsRepository()
         )
 
         val firstEffectDeferred = async { store.effects.first() }
@@ -177,6 +188,68 @@ class RealTerrainWarningStoreTest {
         assertEquals(TerrainWarningEffect.ClearWarning::class, secondEffectDeferred.await()::class)
         assertEquals(TerrainWarningLevel.None, store.state.value.warningLevel)
         store.close()
+    }
+
+    @Test
+    fun usesConfiguredTimeToCollisionWarningSecondsFromSettings() {
+        val dispatcher = StandardTestDispatcher()
+        val settings = FakeAppSettingsRepository(
+            initial = AppSettings(warning = WarningPreferences(timeToCollisionWarningSeconds = 90))
+        )
+        val store = RealTerrainWarningStore(
+            detectTerrainConflictUseCase = DetectTerrainConflictUseCase(
+                terrainRepository = FakeTerrainRepository { _, _ -> 0.0 }
+            ),
+            reducer = TerrainWarningReducer(),
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            appSettingsRepository = settings
+        )
+
+        assertEquals(90.0, store.currentParameters().warningTimeToImpactSeconds)
+
+        settings.update(
+            AppSettings(warning = WarningPreferences(timeToCollisionWarningSeconds = 30))
+        )
+
+        assertEquals(30.0, store.currentParameters().warningTimeToImpactSeconds)
+        store.close()
+    }
+}
+
+private class FakeAppSettingsRepository(
+    initial: AppSettings = AppSettings()
+) : AppSettingsRepository {
+    private val mutableSettings = MutableStateFlow(initial)
+    override val settings: StateFlow<AppSettings> = mutableSettings.asStateFlow()
+
+    fun update(value: AppSettings) {
+        mutableSettings.value = value
+    }
+
+    override suspend fun updateUnits(units: UnitPreferences): AppResult<Unit, Failure> {
+        mutableSettings.value = mutableSettings.value.copy(units = units)
+        return AppResult.Success(Unit)
+    }
+
+    override suspend fun updateWarningPreferences(
+        warning: WarningPreferences
+    ): AppResult<Unit, Failure> {
+        mutableSettings.value = mutableSettings.value.copy(warning = warning)
+        return AppResult.Success(Unit)
+    }
+
+    override suspend fun updateSearchPreferences(
+        search: cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
+    ): AppResult<Unit, Failure> {
+        mutableSettings.value = mutableSettings.value.copy(search = search)
+        return AppResult.Success(Unit)
+    }
+
+    override suspend fun updateMapPreferences(
+        map: cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
+    ): AppResult<Unit, Failure> {
+        mutableSettings.value = mutableSettings.value.copy(map = map)
+        return AppResult.Success(Unit)
     }
 }
 

@@ -36,6 +36,7 @@ kotlin {
             implementation(projects.data.searchData)
             implementation(projects.data.aviationData)
             implementation(projects.data.terrainData)
+            implementation(projects.data.settingsData)
             implementation(projects.feature.searchFeature)
             implementation(projects.feature.searchDockFeature)
             implementation(projects.feature.terrainWarningFeature)

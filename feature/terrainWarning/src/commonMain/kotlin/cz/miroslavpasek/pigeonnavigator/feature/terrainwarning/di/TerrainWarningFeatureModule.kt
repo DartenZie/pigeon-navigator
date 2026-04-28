@@ -16,7 +16,8 @@ fun terrainWarningFeatureModule() = module {
         RealTerrainWarningStore(
             detectTerrainConflictUseCase = get(),
             reducer = get(),
-            dispatcherProvider = get()
+            dispatcherProvider = get(),
+            appSettingsRepository = get()
         )
     }
 }

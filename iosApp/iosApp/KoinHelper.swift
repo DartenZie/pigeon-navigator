@@ -38,3 +38,11 @@ class SearchDockHelper {
         return KoinHelper().getSearchDockHandle()
     }
 }
+
+/// Resolves shared settings handles for Swift-side consumers.
+class SettingsHelper {
+    /// Creates a new `SettingsHandle` from the shared dependency graph.
+    static func resolve() -> SettingsHandle {
+        return KoinHelper().getSettingsHandle()
+    }
+}

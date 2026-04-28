@@ -26,6 +26,7 @@ struct ContentView: View {
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
     @StateObject private var dock = SearchDockViewModelWrapper()
     @StateObject private var locationPermission = LocationPermissionController()
+    @StateObject private var appSettings = AppSettingsViewModelWrapper()
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
@@ -70,7 +71,10 @@ struct ContentView: View {
                     resetNorthToken: resetNorthToken,
                     recenterOnUserToken: recenterOnUserToken,
                     mapFocus: mapFocus,
-                    mapFocusToken: mapFocusToken
+                    mapFocusToken: mapFocusToken,
+                    bearingUpdateThresholdDegreesOverride: appSettings.bearingUpdateThresholdDegrees,
+                    maxDynamicZoomSpeedKmhOverride: appSettings.maxDynamicZoomSpeedKmh,
+                    maxSpeedZoomOutDeltaOverride: appSettings.maxSpeedZoomOutDelta
                 )
                 .ignoresSafeArea()
                 .onAppear {
@@ -156,7 +160,9 @@ struct ContentView: View {
                             )
                         )
                     },
-                    onAddToRouteTap: {}
+                    onAddToRouteTap: {},
+                    minimumSearchQueryLength: Int(appSettings.minimumQueryLength),
+                    searchDebounceDelay: TimeInterval(appSettings.searchDebounceMillis) / 1000.0
                 )
                     .padding(.horizontal, hudSize == .full ? 0 : 16)
                     .zIndex(2)

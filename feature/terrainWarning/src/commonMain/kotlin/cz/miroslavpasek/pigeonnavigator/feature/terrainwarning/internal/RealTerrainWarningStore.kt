@@ -2,6 +2,7 @@ package cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.internal
 
 import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvider
 import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.AircraftSnapshot
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.DetectTerrainConflictUseCase
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainConflictPrediction
@@ -40,7 +41,8 @@ internal class RealTerrainWarningStore(
     private val detectTerrainConflictUseCase: DetectTerrainConflictUseCase,
     private val reducer: TerrainWarningReducer,
     private val dispatcherProvider: DispatcherProvider,
-    private val parameters: TerrainConflictParameters = TerrainConflictParameters()
+    private val appSettingsRepository: AppSettingsRepository,
+    private val baseParameters: TerrainConflictParameters = TerrainConflictParameters()
 ) : TerrainWarningStore {
 
     private val scope = CoroutineScope(SupervisorJob() + dispatcherProvider.main)
@@ -74,6 +76,8 @@ internal class RealTerrainWarningStore(
 
         lastSnapshot = snapshot
         reduce(TerrainWarningIntent.ComputationStarted)
+
+        val parameters = currentParameters()
 
         scope.launch(dispatcherProvider.default) {
             when (val result = detectTerrainConflictUseCase(snapshot, parameters)) {
@@ -109,6 +113,21 @@ internal class RealTerrainWarningStore(
 
     private fun reduce(intent: TerrainWarningIntent) {
         mutableState.value = reducer.reduce(mutableState.value, intent)
+    }
+
+    /**
+     * Returns the conflict parameters to use for the next computation, with the
+     * user-configured time-to-collision warning threshold layered over [baseParameters].
+     *
+     * Reading the latest [AppSettingsRepository.settings] value here keeps this side-effect-free
+     * (no flow collection) while still picking up live preference changes between samples.
+     *
+     * Visible to module tests so settings wiring can be asserted without driving terrain sampling.
+     */
+    internal fun currentParameters(): TerrainConflictParameters {
+        val warningSeconds = appSettingsRepository.settings.value
+            .warning.timeToCollisionWarningSeconds
+        return baseParameters.copy(warningTimeToImpactSeconds = warningSeconds.toDouble())
     }
 
     /**
