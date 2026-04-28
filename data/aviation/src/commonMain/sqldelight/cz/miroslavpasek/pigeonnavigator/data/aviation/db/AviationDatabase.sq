@@ -1,0 +1,218 @@
+CREATE TABLE installed_package (
+    package_id TEXT NOT NULL PRIMARY KEY,
+    cycle TEXT,
+    region TEXT,
+    source TEXT,
+    installed_at_epoch_ms INTEGER NOT NULL,
+    is_active INTEGER NOT NULL,
+    map_pmtiles_path TEXT NOT NULL,
+    terrain_pmtiles_path TEXT NOT NULL,
+    xml_sha256 TEXT NOT NULL,
+    map_sha256 TEXT NOT NULL,
+    terrain_sha256 TEXT NOT NULL
+);
+
+CREATE TABLE airport (
+    package_id TEXT NOT NULL,
+    airport_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    lat_deg REAL NOT NULL,
+    lon_deg REAL NOT NULL,
+    elev_m INTEGER,
+    PRIMARY KEY (package_id, airport_id)
+);
+
+CREATE TABLE navaid (
+    package_id TEXT NOT NULL,
+    navaid_key TEXT NOT NULL,
+    navaid_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    detail TEXT NOT NULL,
+    lat_deg REAL NOT NULL,
+    lon_deg REAL NOT NULL,
+    PRIMARY KEY (package_id, navaid_key)
+);
+
+CREATE TABLE airspace (
+    package_id TEXT NOT NULL,
+    airspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    lower_m INTEGER,
+    lower_ref TEXT,
+    upper_m INTEGER,
+    upper_ref TEXT,
+    bbox_min_lat REAL NOT NULL,
+    bbox_min_lon REAL NOT NULL,
+    bbox_max_lat REAL NOT NULL,
+    bbox_max_lon REAL NOT NULL,
+    PRIMARY KEY (package_id, airspace_id)
+);
+
+CREATE TABLE airspace_point (
+    package_id TEXT NOT NULL,
+    airspace_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    lat_deg REAL NOT NULL,
+    lon_deg REAL NOT NULL,
+    PRIMARY KEY (package_id, airspace_id, seq)
+);
+
+CREATE INDEX airport_lat_lon_idx ON airport(package_id, lat_deg, lon_deg);
+CREATE INDEX navaid_lat_lon_idx ON navaid(package_id, lat_deg, lon_deg);
+CREATE INDEX airspace_bbox_idx ON airspace(package_id, bbox_min_lat, bbox_max_lat, bbox_min_lon, bbox_max_lon);
+CREATE INDEX airspace_points_idx ON airspace_point(package_id, airspace_id, seq);
+
+selectActivePackage:
+SELECT *
+FROM installed_package
+WHERE is_active = 1
+LIMIT 1;
+
+clearActivePackage:
+UPDATE installed_package
+SET is_active = 0;
+
+insertInstalledPackage:
+INSERT INTO installed_package(
+    package_id,
+    cycle,
+    region,
+    source,
+    installed_at_epoch_ms,
+    is_active,
+    map_pmtiles_path,
+    terrain_pmtiles_path,
+    xml_sha256,
+    map_sha256,
+    terrain_sha256
+) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+);
+
+deletePackage:
+DELETE FROM installed_package
+WHERE package_id = ?;
+
+deletePackageAirportRows:
+DELETE FROM airport
+WHERE package_id = ?;
+
+deletePackageNavaidRows:
+DELETE FROM navaid
+WHERE package_id = ?;
+
+deletePackageAirspacePointRows:
+DELETE FROM airspace_point
+WHERE package_id = ?;
+
+deletePackageAirspaceRows:
+DELETE FROM airspace
+WHERE package_id = ?;
+
+insertAirport:
+INSERT INTO airport(
+    package_id,
+    airport_id,
+    name,
+    kind,
+    lat_deg,
+    lon_deg,
+    elev_m
+) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+insertNavaid:
+INSERT INTO navaid(
+    package_id,
+    navaid_key,
+    navaid_id,
+    name,
+    kind,
+    detail,
+    lat_deg,
+    lon_deg
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertAirspace:
+INSERT INTO airspace(
+    package_id,
+    airspace_id,
+    name,
+    kind,
+    lower_m,
+    lower_ref,
+    upper_m,
+    upper_ref,
+    bbox_min_lat,
+    bbox_min_lon,
+    bbox_max_lat,
+    bbox_max_lon
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+insertAirspacePoint:
+INSERT INTO airspace_point(
+    package_id,
+    airspace_id,
+    seq,
+    lat_deg,
+    lon_deg
+) VALUES (?, ?, ?, ?, ?);
+
+selectAirportsByBoundingBox:
+SELECT *
+FROM airport
+WHERE package_id = ?
+  AND lat_deg BETWEEN ? AND ?
+  AND lon_deg BETWEEN ? AND ?;
+
+selectNavaidsByBoundingBox:
+SELECT *
+FROM navaid
+WHERE package_id = ?
+  AND lat_deg BETWEEN ? AND ?
+  AND lon_deg BETWEEN ? AND ?;
+
+selectAirspacesByBoundingBox:
+SELECT *
+FROM airspace
+WHERE package_id = ?
+  AND bbox_min_lat <= ?
+  AND bbox_max_lat >= ?
+  AND bbox_min_lon <= ?
+  AND bbox_max_lon >= ?;
+
+searchAirports:
+SELECT *
+FROM airport
+WHERE package_id = ?
+  AND (airport_id LIKE '%' || ? || '%' COLLATE NOCASE
+    OR name LIKE '%' || ? || '%' COLLATE NOCASE)
+ORDER BY airport_id ASC
+LIMIT ?;
+
+searchNavaids:
+SELECT *
+FROM navaid
+WHERE package_id = ?
+  AND (navaid_id LIKE '%' || ? || '%' COLLATE NOCASE
+    OR name LIKE '%' || ? || '%' COLLATE NOCASE)
+ORDER BY navaid_id ASC, name ASC
+LIMIT ?;
+
+searchAirspaces:
+SELECT *
+FROM airspace
+WHERE package_id = ?
+  AND (airspace_id LIKE '%' || ? || '%' COLLATE NOCASE
+    OR name LIKE '%' || ? || '%' COLLATE NOCASE)
+ORDER BY airspace_id ASC, name ASC
+LIMIT ?;
+
+selectAirspacePoints:
+SELECT *
+FROM airspace_point
+WHERE package_id = ?
+  AND airspace_id = ?
+ORDER BY seq ASC;

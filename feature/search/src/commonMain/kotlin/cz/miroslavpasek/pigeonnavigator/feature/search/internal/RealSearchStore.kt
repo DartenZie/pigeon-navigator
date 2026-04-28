@@ -62,7 +62,9 @@ internal class RealSearchStore(
         scope.launch(dispatcherProvider.io) {
             when (val result = searchUseCase(currentQuery)) {
                 is AppResult.Success -> {
-                    reduce(SearchIntent.SearchSucceeded(result.value))
+                    reduce(SearchIntent.SearchSucceeded(result.value.map { searchResult ->
+                        "${searchResult.title} · ${searchResult.subtitle} · ${searchResult.kindLabel}"
+                    }))
                 }
 
                 is AppResult.Failure -> {

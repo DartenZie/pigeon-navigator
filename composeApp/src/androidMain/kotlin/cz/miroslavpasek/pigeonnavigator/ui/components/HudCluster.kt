@@ -20,8 +20,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlin.math.min
 
 val BubbleSize = 64.dp
@@ -35,8 +44,25 @@ fun HudCluster(
     altitudeMeters: Int,
     mapDirection: Double,
     isRecenterVisible: Boolean,
+    searchDockState: SearchDockState,
+    mapTapLookup: MapTapLookupState,
+    maxSearchPanelHeight: Dp,
     onCompassTap: () -> Unit,
     onRecenterTap: () -> Unit,
+    onSearchDockExpandedChanged: (Boolean) -> Unit,
+    onSearchDockQueryChanged: (String) -> Unit,
+    onSearchDockSubmitSearch: () -> Unit,
+    onSearchDockClearSearch: () -> Unit,
+    onSearchDockRoutePlanningChanged: (Boolean) -> Unit,
+    onSearchDockRouteSelected: (SearchDockRoute) -> Unit,
+    onNearbyPoiSelected: (SearchDockPoiItem) -> Unit,
+    onSearchResultSelected: (SearchResult) -> Unit,
+    onMapTapAirportSelected: (NearbyAirport) -> Unit,
+    onMapTapAirspaceSelected: (Airspace) -> Unit,
+    onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
+    onMapTapDetailRequested: (key: String) -> Unit,
+    onMapTapDetailClosed: () -> Unit,
+    onAddToRouteClicked: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val normalizedDirection = normalizeDirection(mapDirection)
@@ -96,6 +122,23 @@ fun HudCluster(
         }
 
         SearchDock(
+            state = searchDockState,
+            mapTapLookup = mapTapLookup,
+            maxPanelHeight = maxSearchPanelHeight,
+            onExpandedChange = onSearchDockExpandedChanged,
+            onQueryChanged = onSearchDockQueryChanged,
+            onSubmitSearch = onSearchDockSubmitSearch,
+            onClearSearch = onSearchDockClearSearch,
+            onRoutePlanningChanged = onSearchDockRoutePlanningChanged,
+            onRouteSelected = onSearchDockRouteSelected,
+            onNearbyPoiSelected = onNearbyPoiSelected,
+            onSearchResultSelected = onSearchResultSelected,
+            onMapTapAirportSelected = onMapTapAirportSelected,
+            onMapTapAirspaceSelected = onMapTapAirspaceSelected,
+            onMapTapNavaidSelected = onMapTapNavaidSelected,
+            onMapTapDetailRequested = onMapTapDetailRequested,
+            onMapTapDetailClosed = onMapTapDetailClosed,
+            onAddToRouteClicked = onAddToRouteClicked,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp)

@@ -15,6 +15,29 @@ enum class TerrainWarningLevel {
 }
 
 /**
+ * Classifies map overlay severity for sampled terrain hazard points.
+ */
+enum class TerrainHazardLevel {
+    /** Terrain is close but not currently intersecting the flight path margin. */
+    NearConflict,
+    /** Terrain intersects the sampled flight path margin. */
+    Conflict
+}
+
+/**
+ * One sampled map point that should be highlighted as terrain hazard.
+ *
+ * @property latitude Latitude in decimal degrees.
+ * @property longitude Longitude in decimal degrees.
+ * @property level Hazard severity for overlay styling.
+ */
+data class TerrainHazardSample(
+    val latitude: Double,
+    val longitude: Double,
+    val level: TerrainHazardLevel
+)
+
+/**
  * Describes the latest terrain conflict evaluation for one aircraft snapshot.
  *
  * @property hasConflict True when at least one sampled ray intersects terrain inside look-ahead distance.
@@ -22,13 +45,15 @@ enum class TerrainWarningLevel {
  * @property minClearanceMeters Lowest sampled clearance after applying the configured safety margin.
  * @property distanceToImpactMeters Distance to the nearest terrain intersection, or `null` when no impact is predicted.
  * @property timeToImpactSeconds Time to nearest impact using current speed, or `null` when not computable.
+ * @property hazardSamples Sampled map points representing near-conflict and conflict areas.
  */
 data class TerrainConflictPrediction(
     val hasConflict: Boolean,
     val warningLevel: TerrainWarningLevel,
     val minClearanceMeters: Double,
     val distanceToImpactMeters: Double?,
-    val timeToImpactSeconds: Double?
+    val timeToImpactSeconds: Double?,
+    val hazardSamples: List<TerrainHazardSample> = emptyList()
 )
 
 /**
@@ -45,6 +70,8 @@ data class TerrainConflictPrediction(
  * @property warningClearanceMeters Clearance threshold that triggers [TerrainWarningLevel.Warning].
  * @property cautionTimeToImpactSeconds Time-to-impact threshold that triggers [TerrainWarningLevel.Caution].
  * @property warningTimeToImpactSeconds Time-to-impact threshold that triggers [TerrainWarningLevel.Warning].
+ * @property nearConflictVerticalBandMeters Vertical band below aircraft altitude that should be
+ * rendered as near-conflict on the map while terrain is still below the aircraft.
  */
 data class TerrainConflictParameters(
     val lookAheadDistanceMeters: Double = 20_000.0,
@@ -57,5 +84,6 @@ data class TerrainConflictParameters(
     val cautionClearanceMeters: Double = 150.0,
     val warningClearanceMeters: Double = 60.0,
     val cautionTimeToImpactSeconds: Double = 60.0,
-    val warningTimeToImpactSeconds: Double = 30.0
+    val warningTimeToImpactSeconds: Double = 30.0,
+    val nearConflictVerticalBandMeters: Double = 50.0
 )

@@ -16,7 +16,7 @@ class SearchUseCase(
      * @return [AppResult.Failure] with [Failure.Validation] when [query] is blank.
      * Otherwise returns repository output unchanged.
      */
-    suspend operator fun invoke(query: String): AppResult<List<String>, Failure> {
+    suspend operator fun invoke(query: String): AppResult<List<SearchResult>, Failure> {
         if (query.isBlank()) {
             return AppResult.Failure(Failure.Validation("Query cannot be blank"))
         }

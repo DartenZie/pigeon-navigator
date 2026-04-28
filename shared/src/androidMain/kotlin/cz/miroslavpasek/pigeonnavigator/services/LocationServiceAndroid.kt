@@ -9,10 +9,12 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationAvailability
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.Priority
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
+import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -26,10 +28,15 @@ class LocationServiceAndroid(
 ) : LocationService {
 
     private fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
+        val hasFineLocation = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+        val hasCoarseLocation = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return hasFineLocation || hasCoarseLocation
     }
 
     @Suppress("MissingPermission")
@@ -48,7 +55,9 @@ class LocationServiceAndroid(
                         altitudeMeters = 0.0,
                         speedMetersPerSecond = 0f,
                         bearingDegrees = 0f,
+                        horizontalAccuracyMeters = null,
                         requiresPermission = true,
+                        status = LocationStatus.PermissionRequired,
                     )
                 )
                 null
@@ -58,6 +67,25 @@ class LocationServiceAndroid(
                     .build()
 
                 val callback = object : LocationCallback() {
+                    override fun onLocationAvailability(locationAvailability: LocationAvailability) {
+                        super.onLocationAvailability(locationAvailability)
+                        if (!locationAvailability.isLocationAvailable) {
+                            Log.w("LocationServiceAndroid", "GPS signal lost")
+                            trySend(
+                                FlightLocation(
+                                    latitude = 0.0,
+                                    longitude = 0.0,
+                                    altitudeMeters = 0.0,
+                                    speedMetersPerSecond = 0f,
+                                    bearingDegrees = 0f,
+                                    horizontalAccuracyMeters = null,
+                                    requiresPermission = false,
+                                    status = LocationStatus.SignalLost,
+                                )
+                            )
+                        }
+                    }
+
                     override fun onLocationResult(result: LocationResult) {
                         super.onLocationResult(result)
 
@@ -70,7 +98,10 @@ class LocationServiceAndroid(
                                     altitudeMeters = location.altitude,
                                     speedMetersPerSecond = location.speed,
                                     bearingDegrees = location.bearing,
+                                    horizontalAccuracyMeters =
+                                        if (location.hasAccuracy()) location.accuracy.toDouble() else null,
                                     requiresPermission = false,
+                                    status = LocationStatus.Active,
                                 )
                             )
                         }

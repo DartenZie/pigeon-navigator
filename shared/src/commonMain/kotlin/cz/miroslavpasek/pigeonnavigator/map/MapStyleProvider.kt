@@ -1,5 +1,7 @@
 package cz.miroslavpasek.pigeonnavigator.map
 
+import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.GetActiveMapPackageUseCase
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -9,6 +11,8 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import kotlinx.coroutines.runBlocking
+import org.koin.mp.KoinPlatform
 
 /**
  * Builds map style JSON by injecting PMTiles sources and a hillshade layer into a base style.
@@ -18,7 +22,9 @@ import kotlinx.serialization.json.put
 class MapStyleProvider(
     private val config: MapStyleConfig = MapStyleConfig(),
     private val assetLoader: PlatformAssetLoader = PlatformAssetLoader(),
-    private val urlResolver: PmtilesUrlResolver = PmtilesUrlResolver()
+    private val urlResolver: PmtilesUrlResolver = PmtilesUrlResolver(),
+    private val pathChecker: PlatformPathChecker = PlatformPathChecker(),
+    private val getActiveMapPackageUseCase: GetActiveMapPackageUseCase = KoinPlatform.getKoin().get()
 ) {
     private companion object {
         const val SOURCE_MIN_ZOOM = 5
@@ -34,24 +40,49 @@ class MapStyleProvider(
     private var cachedStyleJson: String? = null
 
     /**
-     * Returns runtime style JSON with terrain source and hillshade injected.
+     * Returns runtime style JSON with terrain source and hillshade injected,
+     * or null when no active package with valid files is available.
      */
-    fun getStyleJson(): String {
+    fun getStyleJson(): String? {
         cachedStyleJson?.let { return it }
 
-        val baseStyle = assetLoader.readText(config.baseStyleAssetPath)
-        val styleJson = injectSourcesAndHillshade(baseStyle)
+        val resolvedConfig = resolveActiveConfig() ?: return null
+
+        val styleJson = runCatching {
+            val baseStyle = assetLoader.readText(config.baseStyleAssetPath)
+            injectSourcesAndHillshade(baseStyle, resolvedConfig)
+        }.getOrNull() ?: return null
+
         cachedStyleJson = styleJson
         return styleJson
     }
 
-    private fun injectSourcesAndHillshade(styleJson: String): String {
+    /**
+     * Returns a [MapStyleConfig] pointing to the active package's local PMTiles files,
+     * or null when no active package exists or its files are missing from disk.
+     */
+    private fun resolveActiveConfig(): MapStyleConfig? {
+        val active = runBlocking { getActiveMapPackageUseCase() }
+        return when (active) {
+            is AppResult.Success -> config.copy(
+                tileArchiveLocation = TileArchiveLocation.LocalFile(active.value.mapPmtilesAbsolutePath),
+                terrainArchiveLocation = TileArchiveLocation.LocalFile(active.value.terrainPmtilesAbsolutePath)
+            ).takeIf {
+                pathChecker.exists(active.value.mapPmtilesAbsolutePath) &&
+                    pathChecker.exists(active.value.terrainPmtilesAbsolutePath)
+            }
+
+            is AppResult.Failure -> null
+        }
+    }
+
+    private fun injectSourcesAndHillshade(styleJson: String, resolvedConfig: MapStyleConfig): String {
         val rootMap = Json.parseToJsonElement(styleJson).jsonObject.toMutableMap()
         val sourcesMap = (rootMap["sources"] as? JsonObject)?.toMutableMap() ?: mutableMapOf()
 
-        sourcesMap[config.pmtilesSourceId] = buildJsonObject {
+        sourcesMap[resolvedConfig.pmtilesSourceId] = buildJsonObject {
             put("type", "vector")
-            put("url", urlResolver.resolve(config.tileArchiveLocation))
+            put("url", urlResolver.resolve(resolvedConfig.tileArchiveLocation))
             put("minzoom", SOURCE_MIN_ZOOM)
             put("maxzoom", SOURCE_MAX_ZOOM)
             put("bounds", buildJsonArray {
@@ -59,9 +90,9 @@ class MapStyleProvider(
             })
         }
 
-        sourcesMap[config.terrainDemSourceId] = buildJsonObject {
+        sourcesMap[resolvedConfig.terrainDemSourceId] = buildJsonObject {
             put("type", "raster-dem")
-            put("url", urlResolver.resolve(config.terrainArchiveLocation))
+            put("url", urlResolver.resolve(resolvedConfig.terrainArchiveLocation))
             put("encoding", "terrarium")
             put("tileSize", TERRAIN_TILE_SIZE)
             put("minzoom", TERRAIN_SOURCE_MIN_ZOOM)
@@ -74,11 +105,11 @@ class MapStyleProvider(
         rootMap["sources"] = JsonObject(sourcesMap)
 
         val layers = (rootMap["layers"] as? JsonArray)?.toMutableList() ?: mutableListOf()
-        if (layers.none { it.layerId == config.hillshadeLayerId }) {
+        if (layers.none { it.layerId == resolvedConfig.hillshadeLayerId }) {
             val hillshadeLayer = buildJsonObject {
-                put("id", config.hillshadeLayerId)
+                put("id", resolvedConfig.hillshadeLayerId)
                 put("type", "hillshade")
-                put("source", config.terrainDemSourceId)
+                put("source", resolvedConfig.terrainDemSourceId)
                 put("layout", buildJsonObject {
                     put("visibility", "visible")
                 })

@@ -8,10 +8,10 @@ import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
  */
 interface SearchRepository {
     /**
-     * Returns labels that match [query].
+     * Returns aviation records that match [query].
      *
      * @param query User-provided search text.
-     * @return [AppResult.Success] with matched labels, or [AppResult.Failure] with a domain failure.
+     * @return [AppResult.Success] with matched records, or [AppResult.Failure] with a domain failure.
      */
-    suspend fun search(query: String): AppResult<List<String>, Failure>
+    suspend fun search(query: String): AppResult<List<SearchResult>, Failure>
 }

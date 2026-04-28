@@ -20,6 +20,7 @@ android {
 
     androidResources {
         noCompress += "pmtiles"
+        noCompress += "ofpkg"
     }
 
     defaultConfig {
@@ -70,7 +71,9 @@ dependencies {
     implementation(projects.domain)
     implementation(projects.data.searchData)
     implementation(projects.data.terrainData)
+    implementation(projects.data.aviationData)
     implementation(projects.feature.searchFeature)
+    implementation(projects.feature.searchDockFeature)
     implementation(projects.feature.terrainWarningFeature)
 
     debugImplementation(libs.compose.uiTooling)
