@@ -18,7 +18,7 @@ class NavSnapshotParserTest {
                 </Airport>
               </Airports>
               <Navaids>
-                <Navaid id="N1" t="VOR" d="ENR" n="Navaid 1" lat="50.20" lon="14.20"/>
+                <Navaid id="N1" t="VOR" d="ENR" n="Navaid 1" freq="115.9" lat="50.20" lon="14.20"/>
               </Navaids>
               <Airspaces>
                 <Airspace id="ASP1" d="ATZ" n="Airspace 1" t="ATZ" lowM="0" lowRef="AGL" upM="3000" upRef="STD">
@@ -40,6 +40,7 @@ class NavSnapshotParserTest {
         assertEquals("LKAA", parsed.airports.first().id)
         assertEquals(1, parsed.navaids.size)
         assertEquals("N1", parsed.navaids.first().id)
+        assertEquals("115.9", parsed.navaids.first().frequency)
         assertEquals(1, parsed.airspaces.size)
         assertEquals(4, parsed.airspaces.first().points.size)
     }

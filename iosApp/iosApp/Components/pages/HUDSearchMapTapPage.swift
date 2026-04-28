@@ -55,8 +55,7 @@ struct HUDSearchMapTapPage: View {
                             title: airport.id,
                             subtitle: airport.name,
                             trailingLabel: airport.distanceLabel,
-                            onTap: { dock.openMapTapDetail("airport:\(airport.id)") },
-                            onLocate: { onAirportTap(airport) }
+                            onTap: { dock.openMapTapDetail("airport:\(airport.id)") }
                         )
                     }
                 }
@@ -74,8 +73,7 @@ struct HUDSearchMapTapPage: View {
                             title: navaid.ident,
                             subtitle: navaid.detail,
                             trailingLabel: navaid.distanceLabel,
-                            onTap: { dock.openMapTapDetail("navaid:\(navaid.ident)") },
-                            onLocate: { onNavaidTap(navaid) }
+                            onTap: { dock.openMapTapDetail("navaid:\(navaid.ident)") }
                         )
                     }
                 }
@@ -93,8 +91,7 @@ struct HUDSearchMapTapPage: View {
                             title: airspace.name,
                             subtitle: airspace.detail,
                             trailingLabel: nil,
-                            onTap: { dock.openMapTapDetail("airspace:\(airspace.id)") },
-                            onLocate: { onAirspaceTap(airspace) }
+                            onTap: { dock.openMapTapDetail("airspace:\(airspace.id)") }
                         )
                     }
                 }
@@ -108,8 +105,7 @@ struct HUDSearchMapTapPage: View {
         title: String,
         subtitle: String,
         trailingLabel: String?,
-        onTap: @escaping () -> Void,
-        onLocate: @escaping () -> Void
+        onTap: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 8) {
             if let iconName {
@@ -130,16 +126,6 @@ struct HUDSearchMapTapPage: View {
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-            Button(action: onLocate) {
-                Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-            Button(action: onAddToRouteTap) {
-                Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .buttonStyle(.plain)
         }
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
@@ -152,47 +138,22 @@ struct HUDSearchMapTapPage: View {
 
     @ViewBuilder
     private func detailView(detail: MapTapDetailRecord) -> some View {
-        HStack(spacing: 8) {
-            Button(action: { dock.closeMapTapDetail() }) {
-                Image(systemName: "chevron.backward")
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-
-            Text(detail.title)
-                .font(.system(size: 16, weight: .semibold))
-
-            Spacer()
-
-            Button(action: { detail.locate(self) }) {
-                Image(systemName: "mappin.and.ellipse")
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-
-            Button(action: onAddToRouteTap) {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 4)
+        detailHeader(title: detail.title, onBack: { dock.closeMapTapDetail() })
 
         Divider()
 
         VStack(alignment: .leading, spacing: 8) {
             ForEach(detail.rows, id: \.label) { row in
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(row.label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 86, alignment: .leading)
-                    Text(row.value)
-                        .font(.system(size: 13))
-                }
+                detailRow(label: row.label, value: row.value)
             }
         }
         .padding(.horizontal, 4)
+
+        VStack(spacing: 8) {
+            detailActionButton(title: "Locate on Map", systemImage: "mappin.and.ellipse") { detail.locate(self) }
+            detailActionButton(title: "Add to Route", systemImage: "plus") { onAddToRouteTap() }
+        }
+        .padding(.top, 4)
     }
 
     fileprivate func locateAirport(_ a: MapTapAirportItem) { onAirportTap(a) }
@@ -227,12 +188,18 @@ private enum MapTapDetailRecord {
                 DetailRow(label: "Position", value: String(format: "%.4f, %.4f", a.latitude, a.longitude))
             ]
         case .navaid(let n):
-            return [
+            var rows = [
                 DetailRow(label: "Name", value: n.name),
-                DetailRow(label: "Detail", value: n.detail),
+                DetailRow(label: "Detail", value: n.detail)
+            ]
+            if let frequency = n.frequency, !frequency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                rows.append(DetailRow(label: "Frequency", value: frequency))
+            }
+            rows.append(contentsOf: [
                 DetailRow(label: "Distance", value: n.distanceLabel),
                 DetailRow(label: "Position", value: String(format: "%.4f, %.4f", n.latitude, n.longitude))
-            ]
+            ])
+            return rows
         case .airspace(let s):
             return [
                 DetailRow(label: "Detail", value: s.detail),

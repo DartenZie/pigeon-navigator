@@ -22,6 +22,7 @@ sealed interface SearchResult {
         override val id: String,
         override val title: String,
         override val subtitle: String,
+        val frequency: String?,
         val latitude: Double,
         val longitude: Double
     ) : SearchResult {

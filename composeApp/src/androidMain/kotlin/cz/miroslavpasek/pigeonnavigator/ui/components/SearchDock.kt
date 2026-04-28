@@ -7,6 +7,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,15 +32,13 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PinDrop
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -47,8 +48,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
@@ -59,6 +70,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
+import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -67,6 +79,8 @@ private enum class AndroidSearchDockSize { Bar, Half, Full }
 private val SearchDockBarHeight = 64.dp
 private val SearchDockHalfHeight = 320.dp
 private const val SearchDockFlingVelocityThreshold = 1600f
+private const val SearchDockSearchDebounceMillis = 300L
+private const val SearchDockMinimumSearchQueryLength = 2
 
 @Composable
 fun SearchDock(
@@ -87,10 +101,14 @@ fun SearchDock(
     onMapTapDetailRequested: (key: String) -> Unit = {},
     onMapTapDetailClosed: () -> Unit = {},
     onAddToRouteClicked: () -> Unit,
+    onFullExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
     val density = LocalDensity.current
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    var isSearchFocused by remember { mutableStateOf(false) }
     var dockSize by remember {
         mutableStateOf(if (state.isExpanded) AndroidSearchDockSize.Half else AndroidSearchDockSize.Bar)
     }
@@ -101,6 +119,22 @@ fun SearchDock(
             !state.isExpanded && dockSize != AndroidSearchDockSize.Bar -> dockSize = AndroidSearchDockSize.Bar
             state.isExpanded && dockSize == AndroidSearchDockSize.Bar -> dockSize = AndroidSearchDockSize.Half
         }
+    }
+
+    LaunchedEffect(dockSize) {
+        onFullExpandedChange(dockSize == AndroidSearchDockSize.Full)
+        if (dockSize != AndroidSearchDockSize.Full) {
+            focusManager.clearFocus()
+        }
+    }
+
+    LaunchedEffect(state.searchQuery, isSearchFocused) {
+        val trimmedQuery = state.searchQuery.trim()
+        if (!isSearchFocused || trimmedQuery.length < SearchDockMinimumSearchQueryLength) {
+            return@LaunchedEffect
+        }
+        delay(SearchDockSearchDebounceMillis)
+        onSubmitSearch()
     }
 
     fun updateDockSize(newSize: AndroidSearchDockSize) {
@@ -131,23 +165,36 @@ fun SearchDock(
         dragOffset += delta
     }
 
-    val title = when (state.activeRoute) {
-        SearchDockRoute.Nearby -> "Nearby POIs"
-        SearchDockRoute.Search -> "Search Results"
-        SearchDockRoute.RoutePlanner -> "Route Planner"
-        SearchDockRoute.MapTap -> "Tapped Point"
+    val shape = if (dockSize == AndroidSearchDockSize.Full) {
+        androidx.compose.foundation.shape.RoundedCornerShape(
+            topStart = 22.dp,
+            topEnd = 22.dp,
+            bottomStart = 0.dp,
+            bottomEnd = 0.dp
+        )
+    } else {
+        androidx.compose.foundation.shape.RoundedCornerShape(if (dockSize != AndroidSearchDockSize.Bar) 22.dp else 32.dp)
     }
 
     Surface(
         modifier = modifier
             .heightIn(min = SearchDockBarHeight)
             .height(dragAdjustedPanelHeight)
-            .widthIn(max = 360.dp),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(if (dockSize != AndroidSearchDockSize.Bar) 22.dp else 32.dp),
+            .then(
+                if (dockSize == AndroidSearchDockSize.Full) {
+                    Modifier.fillMaxWidth()
+                } else {
+                    Modifier.widthIn(max = 360.dp)
+                }
+            ),
+        shape = shape,
         color = colors.surfaceColorAtElevation(10.dp),
         tonalElevation = 10.dp,
         shadowElevation = 3.dp,
-        border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.35f))
+        border = if (dockSize == AndroidSearchDockSize.Full) null else BorderStroke(
+            1.dp,
+            colors.outlineVariant.copy(alpha = 0.35f)
+        )
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Box(
@@ -169,50 +216,94 @@ fun SearchDock(
                             updateDockSize(newSize)
                         }
                     )
-                    .clickable {
-                        updateDockSize(
-                            if (dockSize == AndroidSearchDockSize.Bar) {
-                                AndroidSearchDockSize.Half
-                            } else {
-                                AndroidSearchDockSize.Bar
-                            }
-                        )
-                    }
             ) {
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .width(34.dp)
                         .padding(top = 6.dp)
-                        .height(4.dp),
+                        .height(4.dp)
+                        .clickable {
+                            updateDockSize(
+                                when (dockSize) {
+                                    AndroidSearchDockSize.Bar -> AndroidSearchDockSize.Half
+                                    AndroidSearchDockSize.Half -> AndroidSearchDockSize.Full
+                                    AndroidSearchDockSize.Full -> AndroidSearchDockSize.Bar
+                                }
+                            )
+                        },
                     shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
                     color = colors.outline.copy(alpha = 0.55f)
                 ) {}
 
-                Row(
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.Center)
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .height(44.dp)
+                        .clickable {
+                            updateDockSize(AndroidSearchDockSize.Full)
+                            onRouteSelected(SearchDockRoute.Search)
+                            focusRequester.requestFocus()
+                        },
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+                    color = if (dockSize == AndroidSearchDockSize.Bar) {
+                        colors.surfaceColorAtElevation(0.dp).copy(alpha = 0f)
+                    } else {
+                        colors.surface
+                    }
                 ) {
-                    Icon(
-                        imageVector = if (state.activeRoute == SearchDockRoute.RoutePlanner) Icons.Filled.Route else Icons.Filled.Search,
-                        contentDescription = null,
-                        tint = colors.onSurface
-                    )
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (dockSize == AndroidSearchDockSize.Bar) "Expand" else "Collapse",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.primary
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Search,
+                            contentDescription = null,
+                            tint = colors.onSurface
+                        )
+                        BasicTextField(
+                            value = state.searchQuery,
+                            onValueChange = { query ->
+                                onQueryChanged(query)
+                                onRouteSelected(SearchDockRoute.Search)
+                                if (query.isBlank()) {
+                                    onClearSearch()
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { focusState ->
+                                    isSearchFocused = focusState.isFocused
+                                    if (focusState.isFocused) {
+                                        updateDockSize(AndroidSearchDockSize.Full)
+                                        onRouteSelected(SearchDockRoute.Search)
+                                    }
+                                },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
+                            cursorBrush = SolidColor(colors.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
+                            decorationBox = { innerTextField ->
+                                Box(contentAlignment = Alignment.CenterStart) {
+                                    if (state.searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = colors.onSurfaceVariant
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                    }
                 }
             }
 
@@ -220,11 +311,6 @@ fun SearchDock(
                 ExpandedDockContent(
                     state = state,
                     mapTapLookup = mapTapLookup,
-                    onQueryChanged = onQueryChanged,
-                    onSubmitSearch = onSubmitSearch,
-                    onClearSearch = onClearSearch,
-                    onRoutePlanningChanged = onRoutePlanningChanged,
-                    onRouteSelected = onRouteSelected,
                     onNearbyPoiSelected = onNearbyPoiSelected,
                     onSearchResultSelected = onSearchResultSelected,
                     onMapTapAirportSelected = onMapTapAirportSelected,
@@ -233,6 +319,11 @@ fun SearchDock(
                     onMapTapDetailRequested = onMapTapDetailRequested,
                     onMapTapDetailClosed = onMapTapDetailClosed,
                     onAddToRouteClicked = onAddToRouteClicked,
+                    onContentScrollStarted = {
+                        if (dockSize == AndroidSearchDockSize.Half) {
+                            updateDockSize(AndroidSearchDockSize.Full)
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxHeight()
                         .padding(horizontal = 10.dp)
@@ -246,11 +337,6 @@ fun SearchDock(
 private fun ExpandedDockContent(
     state: SearchDockState,
     mapTapLookup: MapTapLookupState,
-    onQueryChanged: (String) -> Unit,
-    onSubmitSearch: () -> Unit,
-    onClearSearch: () -> Unit,
-    onRoutePlanningChanged: (Boolean) -> Unit,
-    onRouteSelected: (SearchDockRoute) -> Unit,
     onNearbyPoiSelected: (SearchDockPoiItem) -> Unit,
     onSearchResultSelected: (SearchResult) -> Unit,
     onMapTapAirportSelected: (NearbyAirport) -> Unit,
@@ -259,126 +345,117 @@ private fun ExpandedDockContent(
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
     onAddToRouteClicked: () -> Unit,
+    onContentScrollStarted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = MaterialTheme.colorScheme
+    var selectedNearbyPoiId by remember { mutableStateOf<String?>(null) }
+    var selectedSearchResultId by remember { mutableStateOf<String?>(null) }
+    val selectedNearbyPoi = selectedNearbyPoiId?.let { id ->
+        state.nearbyPoiItems.firstOrNull { it.id == id }
+    }
+    val selectedSearchResult = selectedSearchResultId?.let { id ->
+        state.searchResults.firstOrNull { it.id == id }
+    }
+    val contentScrollConnection = remember(onContentScrollStarted) {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && available != Offset.Zero) {
+                    onContentScrollStarted()
+                }
+                return Offset.Zero
+            }
+        }
+    }
 
     Column(modifier = modifier) {
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
 
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = onQueryChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            singleLine = true,
-            label = { Text("Search") }
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            TextButton(onClick = onSubmitSearch) {
-                Text("Find")
-            }
-            TextButton(onClick = onClearSearch) {
-                Text("Clear")
-            }
-            TextButton(onClick = { onRoutePlanningChanged(!state.isRoutePlanning) }) {
-                Text(if (state.isRoutePlanning) "Stop plan" else "Plan route")
-            }
-        }
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
+                .padding(top = 8.dp)
+                .nestedScroll(contentScrollConnection),
             horizontalAlignment = Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    state.availableRoutes.forEach { route ->
-                        FilterChip(
-                            selected = route == state.activeRoute,
-                            onClick = { onRouteSelected(route) },
-                            label = {
-                                Text(route.label())
-                            }
-                        )
-                    }
-                }
-            }
-
             when (state.activeRoute) {
                 SearchDockRoute.Nearby -> {
-                    item {
-                        SectionTitle(text = "Nearby Points of Interest")
-                    }
-                    if (state.isNearbyPoiLoading) {
+                    if (selectedNearbyPoi != null) {
                         item {
-                            EmptyLine("Fetching nearby POIs...")
-                        }
-                    }
-                    state.nearbyPoiErrorMessage?.let { error ->
-                        item {
-                            Text(
-                                text = error,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.error,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                        }
-                    }
-                    if (!state.isNearbyPoiLoading && state.nearbyPoiItems.isEmpty()) {
-                        item {
-                            EmptyLine("No nearby POIs available")
-                        }
-                    } else {
-                        items(state.nearbyPoiItems, key = { it.id }) { item ->
-                            NearbyPoiRow(
-                                item = item,
-                                onClick = { onNearbyPoiSelected(item) },
+                            NearbyPoiDetailPanel(
+                                item = selectedNearbyPoi,
+                                onBack = { selectedNearbyPoiId = null },
+                                onLocateClicked = { onNearbyPoiSelected(selectedNearbyPoi) },
                                 onAddToRouteClicked = onAddToRouteClicked
                             )
+                        }
+                    } else {
+                        item {
+                            SectionTitle(text = "Nearby Points of Interest")
+                        }
+                        if (state.isNearbyPoiLoading) {
+                            item { EmptyLine("Fetching nearby POIs...") }
+                        }
+                        state.nearbyPoiErrorMessage?.let { error ->
+                            item {
+                                Text(
+                                    text = error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.error,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                )
+                            }
+                        }
+                        if (!state.isNearbyPoiLoading && state.nearbyPoiItems.isEmpty()) {
+                            item { EmptyLine("No nearby POIs available") }
+                        } else {
+                            items(state.nearbyPoiItems, key = { it.id }) { item ->
+                                NearbyPoiRow(
+                                    item = item,
+                                    onClick = { selectedNearbyPoiId = item.id }
+                                )
+                            }
                         }
                     }
                 }
 
                 SearchDockRoute.Search -> {
-                    item {
-                        SectionTitle(text = "Search")
-                    }
-                    if (state.isSearching) {
+                    if (selectedSearchResult != null) {
                         item {
-                            EmptyLine("Searching...")
-                        }
-                    }
-                    state.searchErrorMessage?.let { error ->
-                        item {
-                            Text(
-                                text = error,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.error,
-                                modifier = Modifier.padding(horizontal = 8.dp)
-                            )
-                        }
-                    }
-                    if (!state.isSearching && state.searchResults.isEmpty()) {
-                        item {
-                            EmptyLine("No search results")
-                        }
-                    } else {
-                        items(state.searchResults, key = { it.id }) { result ->
-                            SearchResultRow(
-                                result = result,
-                                onClick = { onSearchResultSelected(result) },
+                            SearchResultDetailPanel(
+                                result = selectedSearchResult,
+                                onBack = { selectedSearchResultId = null },
+                                onLocateClicked = { onSearchResultSelected(selectedSearchResult) },
                                 onAddToRouteClicked = onAddToRouteClicked
                             )
+                        }
+                    } else {
+                        item {
+                            SectionTitle(text = "Search")
+                        }
+                        if (state.isSearching) {
+                            item { EmptyLine("Searching...") }
+                        }
+                        state.searchErrorMessage?.let { error ->
+                            item {
+                                Text(
+                                    text = error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.error,
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                )
+                            }
+                        }
+                        if (!state.isSearching && state.searchResults.isEmpty()) {
+                            item { EmptyLine("No search results") }
+                        } else {
+                            items(state.searchResults, key = { it.id }) { result ->
+                                SearchResultRow(
+                                    result = result,
+                                    onClick = { selectedSearchResultId = result.id }
+                                )
+                            }
                         }
                     }
                 }
@@ -445,9 +522,7 @@ private fun ExpandedDockContent(
                                     airport = airport,
                                     onClick = {
                                         onMapTapDetailRequested("airport:${airport.airport.id}")
-                                    },
-                                    onLocateClicked = { onMapTapAirportSelected(airport) },
-                                    onAddToRouteClicked = onAddToRouteClicked
+                                    }
                                 )
                             }
                         }
@@ -461,9 +536,7 @@ private fun ExpandedDockContent(
                                     navaid = navaid,
                                     onClick = {
                                         onMapTapDetailRequested("navaid:${navaid.navaid.id}")
-                                    },
-                                    onLocateClicked = { onMapTapNavaidSelected(navaid) },
-                                    onAddToRouteClicked = onAddToRouteClicked
+                                    }
                                 )
                             }
                         }
@@ -477,9 +550,7 @@ private fun ExpandedDockContent(
                                     airspace = airspace,
                                     onClick = {
                                         onMapTapDetailRequested("airspace:${airspace.id}")
-                                    },
-                                    onLocateClicked = { onMapTapAirspaceSelected(airspace) },
-                                    onAddToRouteClicked = onAddToRouteClicked
+                                    }
                                 )
                             }
                         }
@@ -517,8 +588,7 @@ private fun EmptyLine(text: String) {
 @Composable
 private fun NearbyPoiRow(
     item: SearchDockPoiItem,
-    onClick: () -> Unit,
-    onAddToRouteClicked: () -> Unit
+    onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
@@ -549,15 +619,13 @@ private fun NearbyPoiRow(
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant
         )
-        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
 private fun SearchResultRow(
     result: SearchResult,
-    onClick: () -> Unit,
-    onAddToRouteClicked: () -> Unit
+    onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
@@ -583,16 +651,13 @@ private fun SearchResultRow(
                 maxLines = 1
             )
         }
-        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
 private fun AirportRow(
     airport: NearbyAirport,
-    onClick: () -> Unit,
-    onLocateClicked: () -> Unit,
-    onAddToRouteClicked: () -> Unit
+    onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
@@ -623,17 +688,13 @@ private fun AirportRow(
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant
         )
-        LocateButton(onClick = onLocateClicked)
-        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
 private fun NavaidRow(
     navaid: NearbyNavaid,
-    onClick: () -> Unit,
-    onLocateClicked: () -> Unit,
-    onAddToRouteClicked: () -> Unit
+    onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
@@ -664,17 +725,13 @@ private fun NavaidRow(
             style = MaterialTheme.typography.labelMedium,
             color = colors.onSurfaceVariant
         )
-        LocateButton(onClick = onLocateClicked)
-        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
 private fun AirspaceRow(
     airspace: Airspace,
-    onClick: () -> Unit,
-    onLocateClicked: () -> Unit,
-    onAddToRouteClicked: () -> Unit
+    onClick: () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     Row(
@@ -693,30 +750,169 @@ private fun AirspaceRow(
                 color = colors.onSurfaceVariant
             )
         }
-        LocateButton(onClick = onLocateClicked)
-        AddToRouteButton(onClick = onAddToRouteClicked)
     }
 }
 
 @Composable
-private fun AddToRouteButton(onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
-        Icon(
-            imageVector = Icons.Filled.Add,
-            contentDescription = "Add to route",
-            modifier = Modifier.size(18.dp)
+private fun DetailActionButton(
+    text: String,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+    ) {
+        icon()
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = text)
+    }
+}
+
+@Composable
+private fun DetailActions(
+    onLocateClicked: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        DetailActionButton(
+            text = "Locate on Map",
+            onClick = onLocateClicked,
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.PinDrop,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        )
+        DetailActionButton(
+            text = "Add to Route",
+            onClick = onAddToRouteClicked,
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         )
     }
 }
 
 @Composable
-private fun LocateButton(onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(32.dp)) {
-        Icon(
-            imageVector = Icons.Filled.PinDrop,
-            contentDescription = "Locate on map",
-            modifier = Modifier.size(18.dp)
+private fun DetailHeader(title: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back to results",
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f)
         )
+    }
+}
+
+@Composable
+private fun DetailPanelScaffold(
+    title: String,
+    onBack: () -> Unit,
+    rows: List<Pair<String, String>>,
+    onLocateClicked: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(modifier = Modifier.fillMaxWidth()) {
+        DetailHeader(title = title, onBack = onBack)
+        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            rows.forEach { (label, value) ->
+                DetailRow(label = label, value = value)
+            }
+        }
+        DetailActions(
+            onLocateClicked = onLocateClicked,
+            onAddToRouteClicked = onAddToRouteClicked
+        )
+    }
+}
+
+@Composable
+private fun NearbyPoiDetailPanel(
+    item: SearchDockPoiItem,
+    onBack: () -> Unit,
+    onLocateClicked: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
+    DetailPanelScaffold(
+        title = item.title,
+        onBack = onBack,
+        rows = buildList {
+            add("Kind" to item.kindLabel)
+            add("Name" to item.subtitle)
+            item.frequency?.takeIf { it.isNotBlank() }?.let { add("Frequency" to it) }
+            add("Distance" to formatDistance(item.distanceMeters))
+            add("Position" to formatCoordinateLabel(item.latitude, item.longitude))
+        },
+        onLocateClicked = onLocateClicked,
+        onAddToRouteClicked = onAddToRouteClicked
+    )
+}
+
+@Composable
+private fun SearchResultDetailPanel(
+    result: SearchResult,
+    onBack: () -> Unit,
+    onLocateClicked: () -> Unit,
+    onAddToRouteClicked: () -> Unit
+) {
+    DetailPanelScaffold(
+        title = result.title,
+        onBack = onBack,
+        rows = searchResultRows(result),
+        onLocateClicked = onLocateClicked,
+        onAddToRouteClicked = onAddToRouteClicked
+    )
+}
+
+private fun searchResultRows(result: SearchResult): List<Pair<String, String>> = buildList {
+    add("Kind" to result.kindLabel)
+    add("Name" to result.subtitle)
+    when (result) {
+        is SearchResult.Airport -> add("Position" to formatCoordinateLabel(result.latitude, result.longitude))
+        is SearchResult.Navaid -> {
+            result.frequency?.takeIf { it.isNotBlank() }?.let { add("Frequency" to it) }
+            add("Position" to formatCoordinateLabel(result.latitude, result.longitude))
+        }
+        is SearchResult.Airspace -> {
+            add("Position" to formatCoordinateLabel(result.centerLatitude, result.centerLongitude))
+            add("Bounds NE" to formatCoordinateLabel(result.bounds.maxLatitude, result.bounds.maxLongitude))
+            add("Bounds SW" to formatCoordinateLabel(result.bounds.minLatitude, result.bounds.minLongitude))
+        }
     }
 }
 
@@ -757,45 +953,13 @@ private fun MapTapDetailPanel(
     onLocateClicked: () -> Unit,
     onAddToRouteClicked: () -> Unit
 ) {
-    val colors = MaterialTheme.colorScheme
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back to results",
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Text(
-                text = mapTapRecordTitle(record),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f)
-            )
-            LocateButton(onClick = onLocateClicked)
-            AddToRouteButton(onClick = onAddToRouteClicked)
-        }
-
-        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            mapTapRecordRows(record).forEach { (label, value) ->
-                DetailRow(label = label, value = value)
-            }
-        }
-    }
+    DetailPanelScaffold(
+        title = mapTapRecordTitle(record),
+        onBack = onBack,
+        rows = mapTapRecordRows(record),
+        onLocateClicked = onLocateClicked,
+        onAddToRouteClicked = onAddToRouteClicked
+    )
 }
 
 @Composable
@@ -846,6 +1010,7 @@ private fun mapTapRecordRows(record: MapTapRecord): List<Pair<String, String>> =
             add("Name" to n.name)
             add("Type" to n.kind)
             if (n.detail.isNotBlank()) add("Detail" to n.detail)
+            n.frequency?.takeIf { it.isNotBlank() }?.let { add("Frequency" to it) }
             add("Position" to formatCoordinateLabel(n.latitude, n.longitude))
             add("Distance" to formatDistance(record.value.distanceMeters))
         }

@@ -50,6 +50,7 @@ class RealSearchDockStoreTest {
                         id = "navaid:PRG",
                         title = "PRG",
                         subtitle = "Prague VOR · VOR",
+                        frequency = "115.9",
                         latitude = 50.0,
                         longitude = 14.0
                     )
@@ -179,6 +180,7 @@ private class FakeAviationRepository : AviationRepository {
                         name = "Prague VOR",
                         kind = "VOR",
                         detail = "115.9",
+                        frequency = "115.9",
                         latitude = latitude,
                         longitude = longitude
                     ),

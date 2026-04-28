@@ -16,10 +16,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -50,7 +54,9 @@ import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.toMapFocus
+import cz.miroslavpasek.pigeonnavigator.ui.components.BubbleSize
 import cz.miroslavpasek.pigeonnavigator.ui.components.HudCluster
+import cz.miroslavpasek.pigeonnavigator.ui.components.CircularActionButton
 import cz.miroslavpasek.pigeonnavigator.ui.screens.NavigateScreen
 import cz.miroslavpasek.pigeonnavigator.ui.viewmodel.HomeViewModel
 import org.koin.androidx.compose.koinViewModel
@@ -65,6 +71,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     var isAwayFromUserLocation by remember { mutableStateOf(false) }
     var resetNorthToken by remember { mutableIntStateOf(0) }
     var recenterOnUserToken by remember { mutableIntStateOf(0) }
+    var isSearchDockFullExpanded by remember { mutableStateOf(false) }
     var mapFocusToken by remember { mutableIntStateOf(0) }
     var mapFocus by remember { mutableStateOf<SearchDockMapFocus?>(null) }
     var didAutoRequestLocationPermission by remember { mutableStateOf(false) }
@@ -130,7 +137,13 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
 
     MaterialTheme {
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val maxSearchPanelHeight = maxHeight * 0.72f
+            val settingsBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
+                12.dp + BubbleSize + 12.dp
+            val maxSearchPanelHeight = if (isSearchDockFullExpanded) {
+                (maxHeight - settingsBottomPadding).coerceAtLeast(maxHeight * 0.72f)
+            } else {
+                maxHeight * 0.72f
+            }
 
             Box(modifier = Modifier.fillMaxSize()) {
                 NavigateScreen(
@@ -163,16 +176,32 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                         .padding(top = 12.dp)
                 )
 
+                CircularActionButton(
+                    onClick = {},
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .statusBarsPadding()
+                        .padding(top = 12.dp, end = 16.dp),
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = "Settings"
+                        )
+                    }
+                )
+
                 HudCluster(
                     speedKmh = speedKmh,
                     altitudeMeters = altitudeMeters,
                     mapDirection = mapDirection,
                     isRecenterVisible = isAwayFromUserLocation,
+                    isSearchDockFullExpanded = isSearchDockFullExpanded,
                     searchDockState = state.searchDock,
                     mapTapLookup = state.mapTapLookup,
                     maxSearchPanelHeight = maxSearchPanelHeight,
                     onCompassTap = { resetNorthToken += 1 },
                     onRecenterTap = { recenterOnUserToken += 1 },
+                    onSearchDockFullExpandedChanged = { isSearchDockFullExpanded = it },
                     onSearchDockExpandedChanged = vm::onSearchDockExpandedChanged,
                     onSearchDockQueryChanged = vm::onSearchDockQueryChanged,
                     onSearchDockSubmitSearch = vm::onSearchDockSubmitSearch,
@@ -209,8 +238,11 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                     onAddToRouteClicked = {},
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .padding(horizontal = 16.dp, vertical = 18.dp)
-                        .navigationBarsPadding()
+                        .padding(
+                            horizontal = if (isSearchDockFullExpanded) 0.dp else 16.dp,
+                            vertical = if (isSearchDockFullExpanded) 0.dp else 18.dp
+                        )
+                        .then(if (isSearchDockFullExpanded) Modifier else Modifier.navigationBarsPadding())
                 )
             }
         }

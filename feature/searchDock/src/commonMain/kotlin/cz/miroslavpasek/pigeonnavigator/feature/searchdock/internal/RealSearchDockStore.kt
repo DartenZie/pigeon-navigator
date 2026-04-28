@@ -192,6 +192,7 @@ internal class RealSearchDockStore(
             title = navaid.id,
             subtitle = "${navaid.name} · ${navaid.detail}",
             kindLabel = "Navaid",
+            frequency = navaid.frequency,
             distanceMeters = distanceMeters,
             latitude = navaid.latitude,
             longitude = navaid.longitude

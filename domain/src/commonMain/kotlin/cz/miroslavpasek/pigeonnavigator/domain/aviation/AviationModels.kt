@@ -20,6 +20,7 @@ data class Navaid(
     val name: String,
     val kind: String,
     val detail: String,
+    val frequency: String?,
     val latitude: Double,
     val longitude: Double
 )

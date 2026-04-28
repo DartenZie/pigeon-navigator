@@ -454,6 +454,7 @@ data class SearchDockPoiViewItem(
     val title: String,
     val subtitle: String,
     val kindLabel: String,
+    val frequency: String? = null,
     val distanceLabel: String,
     val latitude: Double,
     val longitude: Double
@@ -464,6 +465,7 @@ data class SearchDockResultViewItem(
     val title: String,
     val subtitle: String,
     val kindLabel: String,
+    val frequency: String? = null,
     val latitude: Double,
     val longitude: Double,
     val minLatitude: Double? = null,
@@ -522,6 +524,7 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
                 title = it.title,
                 subtitle = it.subtitle,
                 kindLabel = it.kindLabel,
+                frequency = it.frequency,
                 distanceLabel = it.distanceMeters.toDistanceLabel(),
                 latitude = it.latitude,
                 longitude = it.longitude
@@ -556,6 +559,7 @@ data class MapTapNavaidItem(
     val ident: String,
     val name: String,
     val detail: String,
+    val frequency: String?,
     val distanceLabel: String,
     val latitude: Double,
     val longitude: Double
@@ -623,6 +627,7 @@ private fun MapTapLookupState.toViewState(): MapTapLookupViewState {
                 ident = it.navaid.id,
                 name = it.navaid.name,
                 detail = "${it.navaid.kind} · ${it.navaid.detail}",
+                frequency = it.navaid.frequency,
                 distanceLabel = it.distanceMeters.toDistanceLabel(),
                 latitude = it.navaid.latitude,
                 longitude = it.navaid.longitude
@@ -648,6 +653,7 @@ private fun SearchResult.toViewItem(): SearchDockResultViewItem {
             title = title,
             subtitle = subtitle,
             kindLabel = kindLabel,
+            frequency = frequency,
             latitude = latitude,
             longitude = longitude
         )

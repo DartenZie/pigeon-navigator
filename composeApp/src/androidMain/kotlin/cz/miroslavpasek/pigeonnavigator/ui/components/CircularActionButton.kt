@@ -12,12 +12,13 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun CircularActionButton(
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     icon: @Composable () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
     SmallFloatingActionButton(
         onClick = onClick,
-        modifier = Modifier.size(BubbleSize),
+        modifier = modifier.size(BubbleSize),
         containerColor = colors.surfaceColorAtElevation(10.dp),
         contentColor = colors.onSurface,
         shape = CircleShape

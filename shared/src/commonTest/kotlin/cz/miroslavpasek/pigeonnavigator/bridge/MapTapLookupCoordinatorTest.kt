@@ -186,6 +186,7 @@ private class RecordingAviationRepository : AviationRepository {
                     name = "Prague",
                     kind = "VOR",
                     detail = "114.30",
+                    frequency = "114.30",
                     latitude = latitude,
                     longitude = longitude
                 ),
@@ -197,6 +198,7 @@ private class RecordingAviationRepository : AviationRepository {
                     name = "Okruh",
                     kind = "NDB",
                     detail = "350",
+                    frequency = "350",
                     latitude = latitude,
                     longitude = longitude
                 ),
