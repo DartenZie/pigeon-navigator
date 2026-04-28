@@ -250,6 +250,7 @@ class AviationRepositoryImpl(
                         name = row.name,
                         kind = row.kind,
                         detail = row.detail,
+                        frequency = row.frequency,
                         latitude = row.lat_deg,
                         longitude = row.lon_deg
                     ),
@@ -326,6 +327,7 @@ class AviationRepositoryImpl(
                 name = navaid.name,
                 kind = navaid.kind,
                 detail = navaid.detail,
+                frequency = navaid.frequency,
                 lat_deg = navaid.latitude,
                 lon_deg = navaid.longitude
             )

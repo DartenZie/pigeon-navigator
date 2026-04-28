@@ -30,6 +30,7 @@ CREATE TABLE navaid (
     name TEXT NOT NULL,
     kind TEXT NOT NULL,
     detail TEXT NOT NULL,
+    frequency TEXT,
     lat_deg REAL NOT NULL,
     lon_deg REAL NOT NULL,
     PRIMARY KEY (package_id, navaid_key)
@@ -131,9 +132,10 @@ INSERT INTO navaid(
     name,
     kind,
     detail,
+    frequency,
     lat_deg,
     lon_deg
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 insertAirspace:
 INSERT INTO airspace(

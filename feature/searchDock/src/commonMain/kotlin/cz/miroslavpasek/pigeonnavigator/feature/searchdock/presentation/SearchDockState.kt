@@ -8,6 +8,7 @@ data class SearchDockPoiItem(
     val title: String,
     val subtitle: String,
     val kindLabel: String,
+    val frequency: String? = null,
     val distanceMeters: Double,
     val latitude: Double,
     val longitude: Double

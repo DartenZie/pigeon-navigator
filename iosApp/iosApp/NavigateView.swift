@@ -48,6 +48,15 @@ struct NavigateView: UIViewRepresentable {
     private let userGuidanceMaxMinuteMarks = 12
     private let userGuidanceTickMarkLengthMeters = 180.0
     private let userGuidanceMinSpeedMetersPerSecond = 0.8
+    private let bearingUpdateThresholdDegrees = 4.0
+    private let maxDynamicZoomSpeedKmh = 300.0
+    private let maxSpeedZoomOutDelta = 2.5
+
+    private var dynamicDefaultZoomLevel: Double {
+        let speedKmh = max(locationSpeedMetersPerSecond, 0) * 3.6
+        let progress = min(speedKmh / maxDynamicZoomSpeedKmh, 1)
+        return zoomLevel - progress * maxSpeedZoomOutDelta
+    }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -219,7 +228,7 @@ struct NavigateView: UIViewRepresentable {
             context.coordinator.lastRecenterOnUserToken = recenterOnUserToken
             context.coordinator.isTrackingUserLocation = true
             if let userLocation = context.coordinator.lastKnownUserLocation {
-                mapView.setCenter(userLocation, zoomLevel: mapView.zoomLevel, animated: true)
+                mapView.setCenter(userLocation, zoomLevel: dynamicDefaultZoomLevel, animated: true)
                 context.coordinator.setAwayFromUserLocation(false)
             }
         }
@@ -239,7 +248,7 @@ struct NavigateView: UIViewRepresentable {
                         animated: true
                     )
                 } else {
-                    mapView.setCenter(mapFocus.center, zoomLevel: zoomLevel, animated: true)
+                    mapView.setCenter(mapFocus.center, zoomLevel: dynamicDefaultZoomLevel, animated: true)
                 }
                 context.coordinator.setAwayFromUserLocation(true)
             }
@@ -258,7 +267,7 @@ struct NavigateView: UIViewRepresentable {
         
         if !context.coordinator.didSetInitialCamera {
             context.coordinator.didSetInitialCamera = true
-            mapView.setCenter(loc, zoomLevel: zoomLevel, animated: false)
+            mapView.setCenter(loc, zoomLevel: dynamicDefaultZoomLevel, animated: false)
             context.coordinator.lastCenter = loc
             context.coordinator.lastFollowLocation = newLocation
             context.coordinator.didCenterOnFirstGpsFix = true
@@ -266,23 +275,36 @@ struct NavigateView: UIViewRepresentable {
         } else {
             if !context.coordinator.didCenterOnFirstGpsFix {
                 context.coordinator.didCenterOnFirstGpsFix = true
-                mapView.setCenter(loc, zoomLevel: mapView.zoomLevel, animated: true)
+                mapView.setCenter(loc, zoomLevel: dynamicDefaultZoomLevel, animated: true)
                 context.coordinator.lastCenter = loc
                 context.coordinator.lastFollowLocation = newLocation
                 context.coordinator.evaluateAwayFromUserLocation(mapView)
                 return
             }
 
-            guard context.coordinator.shouldFollowForLocation(newLocation) else { return }
             guard context.coordinator.isTrackingUserLocation else { return }
 
             let currentCenter = mapView.centerCoordinate
             let current = CLLocation(latitude: currentCenter.latitude, longitude: currentCenter.longitude)
             let shouldRecenter = current.distance(from: newLocation) >= recenterDistanceMeters
+            let desiredDirection = context.coordinator.resolveTrackingDirection(
+                currentDirection: mapView.direction,
+                speedMetersPerSecond: locationSpeedMetersPerSecond,
+                bearingDegrees: locationBearingDegrees,
+                minSpeedMetersPerSecond: userGuidanceMinSpeedMetersPerSecond
+            )
+            let shouldRotate = context.coordinator.angularDistanceDegrees(
+                from: mapView.direction,
+                to: desiredDirection
+            ) >= bearingUpdateThresholdDegrees
 
             if shouldRecenter {
                 mapView.setCenter(loc, zoomLevel: mapView.zoomLevel, animated: true)
                 context.coordinator.lastCenter = loc
+            }
+
+            if shouldRotate {
+                context.coordinator.animateDirection(mapView, to: desiredDirection)
             }
 
             context.coordinator.lastFollowLocation = newLocation
@@ -307,6 +329,12 @@ struct NavigateView: UIViewRepresentable {
         var lastRecenterOnUserToken: Int = 0
         var lastMapFocusToken: Int = 0
         private var lastForwardedMapTap: (coordinate: CLLocationCoordinate2D, timestamp: TimeInterval)?
+        private weak var resetNorthMapView: MLNMapView?
+        private var resetNorthDisplayLink: CADisplayLink?
+        private var resetNorthStartTime: CFTimeInterval = 0
+        private var resetNorthStartDirection: CLLocationDirection = 0
+        private var resetNorthDeltaDirection: CLLocationDirection = 0
+        private let resetNorthAnimationDuration: CFTimeInterval = 0.35
 
         init(
             onDirectionChange: @escaping (CLLocationDirection) -> Void,
@@ -322,9 +350,14 @@ struct NavigateView: UIViewRepresentable {
             self.awayFromUserDistanceMeters = awayFromUserDistanceMeters
         }
 
+        deinit {
+            resetNorthDisplayLink?.invalidate()
+        }
+
         @objc
         func handlePanGesture(_ recognizer: UIPanGestureRecognizer) {
             if recognizer.state == .began {
+                stopResetNorthAnimation()
                 isTrackingUserLocation = false
                 onMapInteraction()
             }
@@ -399,23 +432,99 @@ struct NavigateView: UIViewRepresentable {
         }
 
         func animateResetNorth(_ mapView: MLNMapView) {
-            let currentCamera = mapView.camera
-            let camera = MLNMapCamera(
-                lookingAtCenter: currentCamera.centerCoordinate,
-                altitude: currentCamera.altitude,
-                pitch: currentCamera.pitch,
-                heading: 0
-            )
-            let animationDuration = 0.35
-            mapView.setCamera(
-                camera,
-                withDuration: animationDuration,
-                animationTimingFunction: CAMediaTimingFunction(name: .easeInEaseOut)
-            )
-            DispatchQueue.main.asyncAfter(deadline: .now() + animationDuration) { [weak self, weak mapView] in
-                guard mapView != nil else { return }
-                self?.onDirectionChange(0)
+            animateDirection(mapView, to: 0)
+        }
+
+        func animateDirection(_ mapView: MLNMapView, to targetDirection: CLLocationDirection) {
+            stopResetNorthAnimation()
+
+            let startDirection = normalizeDirection(mapView.direction)
+            let targetDirection = normalizeDirection(targetDirection)
+            let deltaDirection = shortestDirectionDelta(from: startDirection, to: targetDirection)
+            guard abs(deltaDirection) > 0.1 else {
+                mapView.setDirection(targetDirection, animated: false)
+                onDirectionChange(targetDirection)
+                return
             }
+
+            resetNorthMapView = mapView
+            resetNorthStartTime = CACurrentMediaTime()
+            resetNorthStartDirection = startDirection
+            resetNorthDeltaDirection = deltaDirection
+
+            let displayLink = CADisplayLink(target: self, selector: #selector(stepResetNorthAnimation(_:)))
+            resetNorthDisplayLink = displayLink
+            displayLink.add(to: .main, forMode: .common)
+        }
+
+        @objc
+        private func stepResetNorthAnimation(_ displayLink: CADisplayLink) {
+            guard let mapView = resetNorthMapView else {
+                stopResetNorthAnimation()
+                return
+            }
+
+            let elapsed = displayLink.timestamp - resetNorthStartTime
+            let progress = min(max(elapsed / resetNorthAnimationDuration, 0), 1)
+            let easedProgress = progress * progress * (3 - 2 * progress)
+            let direction = normalizeDirection(
+                resetNorthStartDirection + resetNorthDeltaDirection * easedProgress
+            )
+
+            mapView.setDirection(direction, animated: false)
+            onDirectionChange(direction)
+
+            if progress >= 1 {
+                let finalDirection = normalizeDirection(resetNorthStartDirection + resetNorthDeltaDirection)
+                mapView.setDirection(finalDirection, animated: false)
+                onDirectionChange(finalDirection)
+                stopResetNorthAnimation()
+            }
+        }
+
+        private func stopResetNorthAnimation() {
+            resetNorthDisplayLink?.invalidate()
+            resetNorthDisplayLink = nil
+            resetNorthMapView = nil
+        }
+
+        private func normalizeDirection(_ direction: CLLocationDirection) -> CLLocationDirection {
+            let normalized = direction.truncatingRemainder(dividingBy: 360)
+            return normalized >= 0 ? normalized : normalized + 360
+        }
+
+        private func shortestDirectionDelta(
+            from startDirection: CLLocationDirection,
+            to endDirection: CLLocationDirection
+        ) -> CLLocationDirection {
+            let delta = normalizeDirection(endDirection) - normalizeDirection(startDirection)
+            if delta > 180 { return delta - 360 }
+            if delta < -180 { return delta + 360 }
+            return delta
+        }
+
+        func angularDistanceDegrees(
+            from startDirection: CLLocationDirection,
+            to endDirection: CLLocationDirection
+        ) -> CLLocationDirection {
+            abs(shortestDirectionDelta(from: startDirection, to: endDirection))
+        }
+
+        func resolveTrackingDirection(
+            currentDirection: CLLocationDirection,
+            speedMetersPerSecond: Double,
+            bearingDegrees: Double?,
+            minSpeedMetersPerSecond: Double
+        ) -> CLLocationDirection {
+            guard speedMetersPerSecond >= minSpeedMetersPerSecond,
+                  let bearingDegrees,
+                  bearingDegrees.isFinite,
+                  bearingDegrees >= 0,
+                  bearingDegrees <= 360 else {
+                return normalizeDirection(currentDirection)
+            }
+
+            return normalizeDirection(bearingDegrees)
         }
         
         func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {

@@ -211,6 +211,15 @@ struct HUDSearchBar: View {
             .padding(.horizontal, 12)
             .padding(.bottom, 16)
         }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 1)
+                .onChanged { _ in
+                    guard hudSize == .half else { return }
+                    withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                        hudSize = .full
+                    }
+                }
+        )
     }
 
     @ViewBuilder

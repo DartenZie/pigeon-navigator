@@ -53,6 +53,7 @@ class AviationSearchRepositoryImpl(
                         id = "navaid:${row.navaid_key}",
                         title = row.navaid_id,
                         subtitle = "${row.name} · ${row.kind}",
+                        frequency = row.frequency,
                         latitude = row.lat_deg,
                         longitude = row.lon_deg
                     )

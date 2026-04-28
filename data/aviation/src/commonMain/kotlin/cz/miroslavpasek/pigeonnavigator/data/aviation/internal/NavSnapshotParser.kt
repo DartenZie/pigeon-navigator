@@ -73,6 +73,7 @@ internal class NavSnapshotParser {
                         name = attrs["n"].orEmpty(),
                         kind = attrs["t"].orEmpty(),
                         detail = attrs["d"].orEmpty(),
+                        frequency = attrs.firstFrequencyOrNull(),
                         latitude = lat,
                         longitude = lon
                     )
@@ -207,6 +208,11 @@ internal class NavSnapshotParser {
             i = semi + 1
         }
         return sb.toString()
+    }
+
+    private fun Map<String, String>.firstFrequencyOrNull(): String? {
+        return listOf("frequency", "freq", "freqMhz", "freqMHz", "frq", "f")
+            .firstNotNullOfOrNull { key -> this[key]?.trim()?.takeIf { it.isNotEmpty() } }
     }
 }
 
