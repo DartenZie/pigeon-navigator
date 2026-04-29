@@ -5,7 +5,7 @@ struct HUDSearchSearchPage: View {
     @ObservedObject var dock: SearchDockViewModelWrapper
     var minimumQueryLength: Int = 2
     var onResultTap: (SearchDockResultViewItem) -> Void = { _ in }
-    var onAddToRouteTap: () -> Void = {}
+    var onAddToRouteTap: (SearchDockResultViewItem) -> Void = { _ in }
 
     @State private var selectedResultID: String? = nil
 
@@ -104,7 +104,7 @@ struct HUDSearchSearchPage: View {
 
         VStack(spacing: 8) {
             detailActionButton(title: "Locate on Map", systemImage: "mappin.and.ellipse") { onResultTap(item) }
-            detailActionButton(title: "Add to Route", systemImage: "plus") { onAddToRouteTap() }
+            detailActionButton(title: "Add to Route", systemImage: "plus") { onAddToRouteTap(item) }
         }
         .padding(.top, 4)
     }

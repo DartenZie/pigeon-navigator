@@ -14,6 +14,13 @@ data class SearchDockPoiItem(
     val longitude: Double
 )
 
+data class SearchDockRoutePoint(
+    val id: String,
+    val title: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
 sealed interface SearchDockMapFocus {
     data class Point(
         val latitude: Double,
@@ -56,6 +63,7 @@ data class SearchDockState(
     val isNearbyPoiLoading: Boolean = false,
     val nearbyPoiErrorMessage: String? = null,
     val nearbyPoiItems: List<SearchDockPoiItem> = emptyList(),
+    val routeDestinations: List<SearchDockRoutePoint> = emptyList(),
     /**
      * Cursor of the last [MapTapLookup] for which the dock was auto-expanded.
      * Internal bookkeeping for the reducer's "expand only on a fresh lookup

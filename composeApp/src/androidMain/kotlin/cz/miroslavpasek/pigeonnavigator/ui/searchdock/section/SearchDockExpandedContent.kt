@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,6 +31,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.AirportRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.AirspaceRow
@@ -38,11 +40,14 @@ import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.MapTapDetailPane
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.NavaidRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.NearbyPoiDetailPanel
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.NearbyPoiRow
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.RouteDestinationRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.SearchResultDetailPanel
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.SearchResultRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.SectionTitle
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.MapTapRecord
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.findMapTapRecord
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.routeLabelForIndex
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.toRoutePoint
 
 /**
  * Renders the expanded body of the search dock (under the search bar).
@@ -63,7 +68,8 @@ internal fun SearchDockExpandedContent(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     onContentScrollStarted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -106,7 +112,9 @@ internal fun SearchDockExpandedContent(
                                 item = selectedNearbyPoi,
                                 onBack = { selectedNearbyPoiId = null },
                                 onLocateClicked = { onNearbyPoiSelected(selectedNearbyPoi) },
-                                onAddToRouteClicked = onAddToRouteClicked,
+                                onAddToRouteClicked = {
+                                    onAddToRouteClicked(selectedNearbyPoi.toRoutePoint())
+                                },
                             )
                         }
                     } else {
@@ -144,7 +152,9 @@ internal fun SearchDockExpandedContent(
                                 result = selectedSearchResult,
                                 onBack = { selectedSearchResultId = null },
                                 onLocateClicked = { onSearchResultSelected(selectedSearchResult) },
-                                onAddToRouteClicked = onAddToRouteClicked,
+                                onAddToRouteClicked = {
+                                    onAddToRouteClicked(selectedSearchResult.toRoutePoint())
+                                },
                             )
                         }
                     } else {
@@ -177,8 +187,18 @@ internal fun SearchDockExpandedContent(
 
                 SearchDockRoute.RoutePlanner -> {
                     item { SectionTitle(text = "Route Planner") }
-                    item { EmptyLine("Route planner workspace active") }
-                    item { EmptyLine("Add route planning controls here") }
+                    if (state.routeDestinations.isEmpty()) {
+                        item { EmptyLine("Add a point to start a route from your current location") }
+                    } else {
+                        item { EmptyLine("A Current Location") }
+                        itemsIndexed(state.routeDestinations) { index, point ->
+                            RouteDestinationRow(
+                                label = routeLabelForIndex(index + 1),
+                                point = point,
+                                onRemove = { onRouteDestinationRemoved(point.id) },
+                            )
+                        }
+                    }
                 }
 
                 SearchDockRoute.MapTap -> {
@@ -201,7 +221,9 @@ internal fun SearchDockExpandedContent(
                                             onMapTapAirspaceSelected(detailRecord.value)
                                     }
                                 },
-                                onAddToRouteClicked = onAddToRouteClicked,
+                                onAddToRouteClicked = {
+                                    onAddToRouteClicked(detailRecord.toRoutePoint())
+                                },
                             )
                         }
                     } else {

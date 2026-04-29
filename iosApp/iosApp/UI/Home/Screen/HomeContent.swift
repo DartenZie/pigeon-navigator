@@ -72,6 +72,7 @@ struct HomeContent: View {
                     locationSpeedMetersPerSecond: locationSpeedMetersPerSecond,
                     locationBearingDegrees: locationBearingDegrees,
                     terrainHazardPoints: terrainWarning.hazardPoints,
+                    routeDestinations: dock.routeDestinations,
                     followUser: true,
                     onDirectionChange: onMapDirectionChange,
                     onMapInteraction: {
@@ -101,7 +102,15 @@ struct HomeContent: View {
                     onSearchResultTap: onSearchResultTap,
                     onMapTapAirportTap: onMapTapAirportTap,
                     onMapTapAirspaceTap: onMapTapAirspaceTap,
-                    onAddToRouteTap: {},
+                    onAddSearchResultToRouteTap: { item in
+                        addRouteDestination(id: item.id, title: item.title, latitude: item.latitude, longitude: item.longitude)
+                    },
+                    onAddNearbyPoiToRouteTap: { item in
+                        addRouteDestination(id: item.id, title: item.title, latitude: item.latitude, longitude: item.longitude)
+                    },
+                    onAddMapTapToRouteTap: { id, title, latitude, longitude in
+                        addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
+                    },
                     minimumSearchQueryLength: Int(appSettings.minimumQueryLength),
                     searchDebounceDelay: TimeInterval(appSettings.searchDebounceMillis) / 1000.0
                 )
@@ -172,6 +181,15 @@ struct HomeContent: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(4)
+            }
+        }
+    }
+
+    private func addRouteDestination(id: String, title: String, latitude: Double, longitude: Double) {
+        dock.addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
+        if hudSize == .bar {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                hudSize = .half
             }
         }
     }

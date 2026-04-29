@@ -3,17 +3,17 @@ import Combine
 import Shared
 
 /// Bridges the shared Kotlin `SettingsHandle` into an observable SwiftUI model so
-/// platform views can read and mutate global app settings (units, warning threshold,
-/// search debounce / minimum query length, map zoom & bearing tuning) without
+/// platform views can react to global app settings (units, warning threshold,
+/// search debounce / minimum query length, map zoom and bearing tuning) without
 /// reaching into Koin directly.
 @MainActor
 final class AppSettingsViewModelWrapper: ObservableObject {
     private let handle: SettingsHandle
 
-    // Unit preferences mirror Kotlin enums directly.
-    @Published var distanceUnit: DomainDistanceUnit = .nauticalmiles
-    @Published var altitudeUnit: DomainAltitudeUnit = .feet
-    @Published var speedUnit: DomainSpeedUnit = .knots
+    // Unit preferences
+    @Published var distanceUnit: DomainDistanceUnit = DomainDistanceUnit.nauticalmiles
+    @Published var altitudeUnit: DomainAltitudeUnit = DomainAltitudeUnit.feet
+    @Published var speedUnit: DomainSpeedUnit = DomainSpeedUnit.knots
 
     // Warning preferences
     @Published var timeToCollisionWarningSeconds: Int32 = 60
@@ -43,22 +43,21 @@ final class AppSettingsViewModelWrapper: ObservableObject {
         }
     }
 
-    /// Cancels active subscriptions and the underlying Kotlin coroutine scope.
-    /// Call this from the SwiftUI scene/lifecycle teardown to avoid relying on
-    /// process lifetime alone.
-    func dispose() {
-        handle.close()
-    }
-
-    deinit {
-        handle.close()
-    }
-
-    // MARK: - Mutations
-
-    func updateUnits(distance: DomainDistanceUnit, altitude: DomainAltitudeUnit, speed: DomainSpeedUnit) {
+    func updateDistanceUnit(_ unit: DomainDistanceUnit) {
         handle.updateUnits(
-            units: DomainUnitPreferences(distance: distance, altitude: altitude, speed: speed)
+            units: DomainUnitPreferences(distance: unit, altitude: altitudeUnit, speed: speedUnit)
+        ) { _ in }
+    }
+
+    func updateAltitudeUnit(_ unit: DomainAltitudeUnit) {
+        handle.updateUnits(
+            units: DomainUnitPreferences(distance: distanceUnit, altitude: unit, speed: speedUnit)
+        ) { _ in }
+    }
+
+    func updateSpeedUnit(_ unit: DomainSpeedUnit) {
+        handle.updateUnits(
+            units: DomainUnitPreferences(distance: distanceUnit, altitude: altitudeUnit, speed: unit)
         ) { _ in }
     }
 
@@ -66,22 +65,45 @@ final class AppSettingsViewModelWrapper: ObservableObject {
         handle.updateTimeToCollisionWarningSeconds(seconds: seconds) { _ in }
     }
 
-    func updateSearchPreferences(searchDebounceMillis: Int64, minimumQueryLength: Int32) {
+    func updateSearchDebounceMillis(_ milliseconds: Int64) {
         handle.updateSearchPreferences(
-            searchDebounceMillis: searchDebounceMillis,
+            searchDebounceMillis: milliseconds,
             minimumQueryLength: minimumQueryLength
         ) { _ in }
     }
 
-    func updateMapPreferences(
-        maxDynamicZoomSpeedKmh: Double,
-        maxSpeedZoomOutDelta: Double,
-        bearingUpdateThresholdDegrees: Double
-    ) {
+    func updateMinimumQueryLength(_ length: Int32) {
+        handle.updateSearchPreferences(
+            searchDebounceMillis: searchDebounceMillis,
+            minimumQueryLength: length
+        ) { _ in }
+    }
+
+    func updateMaxDynamicZoomSpeedKmh(_ speed: Double) {
         handle.updateMapPreferences(
-            maxDynamicZoomSpeedKmh: maxDynamicZoomSpeedKmh,
+            maxDynamicZoomSpeedKmh: speed,
             maxSpeedZoomOutDelta: maxSpeedZoomOutDelta,
             bearingUpdateThresholdDegrees: bearingUpdateThresholdDegrees
         ) { _ in }
+    }
+
+    func updateMaxSpeedZoomOutDelta(_ delta: Double) {
+        handle.updateMapPreferences(
+            maxDynamicZoomSpeedKmh: maxDynamicZoomSpeedKmh,
+            maxSpeedZoomOutDelta: delta,
+            bearingUpdateThresholdDegrees: bearingUpdateThresholdDegrees
+        ) { _ in }
+    }
+
+    func updateBearingUpdateThresholdDegrees(_ degrees: Double) {
+        handle.updateMapPreferences(
+            maxDynamicZoomSpeedKmh: maxDynamicZoomSpeedKmh,
+            maxSpeedZoomOutDelta: maxSpeedZoomOutDelta,
+            bearingUpdateThresholdDegrees: degrees
+        ) { _ in }
+    }
+
+    deinit {
+        handle.close()
     }
 }

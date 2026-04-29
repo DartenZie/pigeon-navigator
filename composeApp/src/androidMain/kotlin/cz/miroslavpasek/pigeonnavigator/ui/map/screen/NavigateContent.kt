@@ -23,6 +23,7 @@ import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.map.MapStyleProvider
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.AIRSPACE_FIT_PADDING_PX
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.PRAGUE
@@ -30,6 +31,7 @@ import cz.miroslavpasek.pigeonnavigator.ui.map.internal.RECENTER_DISTANCE_METERS
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.TERRAIN_SOURCE_ID
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.angularDistanceDegrees
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.buildTerrainHazardFeatureCollection
+import cz.miroslavpasek.pigeonnavigator.ui.map.internal.ensureRouteLayers
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.ensureTerrainHazardLayers
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.ensureUserGuidanceLayers
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.ensureUserLocationLayers
@@ -37,6 +39,7 @@ import cz.miroslavpasek.pigeonnavigator.ui.map.internal.normalizeBearing
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.resolveDynamicDefaultZoom
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.resolveTrackingBearing
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.shouldShowRecenter
+import cz.miroslavpasek.pigeonnavigator.ui.map.internal.updateRouteLayers
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.updateUserGuidanceLayers
 import cz.miroslavpasek.pigeonnavigator.ui.map.internal.updateUserLocationLayers
 import kotlinx.coroutines.delay
@@ -62,6 +65,7 @@ import org.maplibre.android.style.sources.GeoJsonSource
 fun NavigateContent(
     location: FlightLocation?,
     terrainHazardSamples: List<TerrainHazardSample>,
+    routeDestinations: List<SearchDockRoutePoint>,
     followUser: Boolean,
     onDirectionChange: (Double) -> Unit,
     onMapInteraction: () -> Unit,
@@ -146,8 +150,10 @@ fun NavigateContent(
                         ensureTerrainHazardLayers(it)
                         ensureUserLocationLayers(it)
                         ensureUserGuidanceLayers(it)
+                        ensureRouteLayers(it)
                         updateUserLocationLayers(it, latestLocation)
                         updateUserGuidanceLayers(it, latestLocation)
+                        updateRouteLayers(it, latestLocation, routeDestinations)
                         map.uiSettings.isAttributionEnabled = false
                         map.uiSettings.isLogoEnabled = false
                         map.uiSettings.isCompassEnabled = false
@@ -181,10 +187,12 @@ fun NavigateContent(
                     ensureTerrainHazardLayers(style)
                     ensureUserLocationLayers(style)
                     ensureUserGuidanceLayers(style)
+                    ensureRouteLayers(style)
                     style.getSourceAs<GeoJsonSource>(TERRAIN_SOURCE_ID)
                         ?.setGeoJson(buildTerrainHazardFeatureCollection(terrainHazardSamples))
                     updateUserLocationLayers(style, location)
                     updateUserGuidanceLayers(style, location)
+                    updateRouteLayers(style, location, routeDestinations)
                 }
 
                 if (!didAttachCameraListener) {

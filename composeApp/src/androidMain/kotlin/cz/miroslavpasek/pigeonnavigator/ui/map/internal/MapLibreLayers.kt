@@ -3,12 +3,14 @@ package cz.miroslavpasek.pigeonnavigator.ui.map.internal
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import org.maplibre.android.style.expressions.Expression.eq
 import org.maplibre.android.style.expressions.Expression.get
 import org.maplibre.android.style.expressions.Expression.literal
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
@@ -20,6 +22,11 @@ import org.maplibre.android.style.layers.PropertyFactory.fillOutlineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textHaloColor
+import org.maplibre.android.style.layers.PropertyFactory.textHaloWidth
+import org.maplibre.android.style.layers.PropertyFactory.textSize
 import org.maplibre.android.style.sources.GeoJsonSource
 import org.maplibre.android.maps.Style
 import org.maplibre.geojson.Feature
@@ -51,6 +58,15 @@ private const val USER_GUIDANCE_MINUTE_MARK_LAYER_ID = "user-guidance-minute-mar
 private const val USER_GUIDANCE_KIND_KEY = "kind"
 private const val USER_GUIDANCE_KIND_TRACK = "track"
 private const val USER_GUIDANCE_KIND_CONE = "cone"
+
+private const val ROUTE_LINE_SOURCE_ID = "route-line-source"
+private const val ROUTE_LINE_LAYER_ID = "route-line-layer"
+private const val ROUTE_POINT_SOURCE_ID = "route-point-source"
+private const val ROUTE_POINT_CIRCLE_LAYER_ID = "route-point-circle-layer"
+private const val ROUTE_POINT_LABEL_LAYER_ID = "route-point-label-layer"
+private const val ROUTE_POINT_LABEL_KEY = "label"
+private const val ROUTE_LINE_COLOR = "#00A6FF"
+private const val ROUTE_POINT_COLOR = "#00A6FF"
 
 internal fun ensureUserLocationLayers(style: Style) {
     if (style.getSourceAs<GeoJsonSource>(USER_LOCATION_ACCURACY_SOURCE_ID) == null) {
@@ -194,6 +210,106 @@ private fun TerrainHazardLevel.toSeverityTag(): String = when (this) {
     TerrainHazardLevel.NearConflict -> TERRAIN_SEVERITY_NEAR
     TerrainHazardLevel.Conflict -> TERRAIN_SEVERITY_CONFLICT
 }
+
+internal fun ensureRouteLayers(style: Style) {
+    if (style.getSourceAs<GeoJsonSource>(ROUTE_LINE_SOURCE_ID) == null) {
+        style.addSource(GeoJsonSource(ROUTE_LINE_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf())))
+    }
+
+    if (style.getLayer(ROUTE_LINE_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(ROUTE_LINE_LAYER_ID, ROUTE_LINE_SOURCE_ID)
+                .withProperties(
+                    lineColor(ROUTE_LINE_COLOR),
+                    lineWidth(3.5f),
+                    lineOpacity(0.92f),
+                ),
+        )
+    }
+
+    if (style.getSourceAs<GeoJsonSource>(ROUTE_POINT_SOURCE_ID) == null) {
+        style.addSource(GeoJsonSource(ROUTE_POINT_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf())))
+    }
+
+    if (style.getLayer(ROUTE_POINT_CIRCLE_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(ROUTE_POINT_CIRCLE_LAYER_ID, ROUTE_POINT_SOURCE_ID)
+                .withProperties(
+                    circleColor(ROUTE_POINT_COLOR),
+                    circleRadius(10f),
+                    circleOpacity(1f),
+                    circleStrokeWidth(2f),
+                    circleStrokeColor("#FFFFFF"),
+                ),
+        )
+    }
+
+    if (style.getLayer(ROUTE_POINT_LABEL_LAYER_ID) == null) {
+        style.addLayer(
+            SymbolLayer(ROUTE_POINT_LABEL_LAYER_ID, ROUTE_POINT_SOURCE_ID)
+                .withProperties(
+                    textField(get(ROUTE_POINT_LABEL_KEY)),
+                    textSize(12f),
+                    textColor("#FFFFFF"),
+                    textHaloColor("#000000"),
+                    textHaloWidth(0.4f),
+                ),
+        )
+    }
+}
+
+internal fun updateRouteLayers(
+    style: Style,
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>,
+) {
+    style.getSourceAs<GeoJsonSource>(ROUTE_LINE_SOURCE_ID)
+        ?.setGeoJson(buildRouteLineFeatureCollection(location, destinations))
+    style.getSourceAs<GeoJsonSource>(ROUTE_POINT_SOURCE_ID)
+        ?.setGeoJson(buildRoutePointFeatureCollection(location, destinations))
+}
+
+private fun buildRouteLineFeatureCollection(
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>,
+): FeatureCollection {
+    val points = buildRoutePoints(location, destinations)
+    if (points.size < 2) {
+        return FeatureCollection.fromFeatures(arrayOf())
+    }
+
+    return FeatureCollection.fromFeatures(arrayOf(Feature.fromGeometry(LineString.fromLngLats(points))))
+}
+
+private fun buildRoutePointFeatureCollection(
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>,
+): FeatureCollection {
+    val features = buildRoutePoints(location, destinations).mapIndexed { index, point ->
+        Feature.fromGeometry(point).apply {
+            addStringProperty(ROUTE_POINT_LABEL_KEY, routePointLabelForIndex(index))
+        }
+    }
+
+    return FeatureCollection.fromFeatures(features)
+}
+
+private fun buildRoutePoints(
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>,
+): List<Point> {
+    if (location == null || location.requiresPermission || destinations.isEmpty()) {
+        return emptyList()
+    }
+
+    return listOf(Point.fromLngLat(location.longitude, location.latitude)) +
+        destinations.map { Point.fromLngLat(it.longitude, it.latitude) }
+}
+
+private fun routePointLabelForIndex(index: Int): String {
+    return ('A'.code + index).toChar().toString()
+}
+
 
 private fun buildUserLocationDotFeatureCollection(location: FlightLocation?): FeatureCollection {
     if (location == null || location.requiresPermission) {

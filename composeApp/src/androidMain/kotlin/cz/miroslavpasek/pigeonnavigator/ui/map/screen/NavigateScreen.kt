@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 
 /**
  * Public entry point for the moving-map screen.
@@ -18,6 +19,7 @@ fun NavigateScreen(
     location: FlightLocation?,
     modifier: Modifier = Modifier,
     terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
+    routeDestinations: List<SearchDockRoutePoint> = emptyList(),
     followUser: Boolean = true,
     onDirectionChange: (Double) -> Unit = {},
     onMapInteraction: () -> Unit = {},
@@ -31,6 +33,7 @@ fun NavigateScreen(
     NavigateContent(
         location = location,
         terrainHazardSamples = terrainHazardSamples,
+        routeDestinations = routeDestinations,
         followUser = followUser,
         onDirectionChange = onDirectionChange,
         onMapInteraction = onMapInteraction,

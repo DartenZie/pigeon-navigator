@@ -28,6 +28,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.ui.common.component.CircularActionButton
 import cz.miroslavpasek.pigeonnavigator.ui.common.theme.AppDimensions
@@ -48,6 +49,7 @@ fun HomeContent(
     location: FlightLocation?,
     locationStatus: LocationStatus?,
     terrainHazardSamples: List<TerrainHazardSample>,
+    routeDestinations: List<SearchDockRoutePoint>,
     searchDockState: SearchDockState,
     mapTapLookup: MapTapLookupState,
     altitude: Int,
@@ -85,7 +87,8 @@ fun HomeContent(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     MaterialTheme {
@@ -102,6 +105,7 @@ fun HomeContent(
                 NavigateScreen(
                     location = location,
                     terrainHazardSamples = terrainHazardSamples,
+                    routeDestinations = routeDestinations,
                     followUser = true,
                     onDirectionChange = onMapDirectionChange,
                     onMapInteraction = onMapInteraction,
@@ -165,6 +169,7 @@ fun HomeContent(
                     onMapTapDetailRequested = onMapTapDetailRequested,
                     onMapTapDetailClosed = onMapTapDetailClosed,
                     onAddToRouteClicked = onAddToRouteClicked,
+                    onRouteDestinationRemoved = onRouteDestinationRemoved,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(

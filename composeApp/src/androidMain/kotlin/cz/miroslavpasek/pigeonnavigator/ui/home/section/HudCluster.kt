@@ -30,6 +30,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.ui.common.component.CircularActionButton
 import cz.miroslavpasek.pigeonnavigator.ui.common.component.IndicatorBubble
@@ -76,7 +77,8 @@ fun HudCluster(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val normalizedDirection = normalizeDirection(mapDirection)
@@ -155,6 +157,7 @@ fun HudCluster(
             onMapTapDetailRequested = onMapTapDetailRequested,
             onMapTapDetailClosed = onMapTapDetailClosed,
             onAddToRouteClicked = onAddToRouteClicked,
+            onRouteDestinationRemoved = onRouteDestinationRemoved,
             onFullExpandedChange = onSearchDockFullExpandedChanged,
             modifier = Modifier
                 .fillMaxWidth()

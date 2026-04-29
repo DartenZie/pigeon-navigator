@@ -117,6 +117,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         location = state.location,
         locationStatus = state.locationStatus,
         terrainHazardSamples = state.terrainHazardSamples,
+        routeDestinations = state.searchDock.routeDestinations,
         searchDockState = state.searchDock,
         mapTapLookup = state.mapTapLookup,
         altitude = altitude,
@@ -174,6 +175,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         },
         onMapTapDetailRequested = vm::onMapTapDetailRequested,
         onMapTapDetailClosed = vm::onMapTapDetailClosed,
-        onAddToRouteClicked = {},
+        onAddToRouteClicked = vm::onRouteDestinationAdded,
+        onRouteDestinationRemoved = vm::onRouteDestinationRemoved,
     )
 }

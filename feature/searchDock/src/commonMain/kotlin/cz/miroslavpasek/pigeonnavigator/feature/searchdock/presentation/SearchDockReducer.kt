@@ -27,6 +27,15 @@ class SearchDockReducer(
             is SearchDockIntent.MapSelectionChanged -> state.copy(hasMapSelection = intent.hasSelection)
             is SearchDockIntent.MapTapLookupChanged -> reduceMapTapLookupChanged(state, intent)
             is SearchDockIntent.UserLocationChanged -> state
+            is SearchDockIntent.RouteDestinationAdded -> state.copy(
+                isExpanded = true,
+                isRoutePlanning = true,
+                selectedRouteOverride = SearchDockRoute.RoutePlanner,
+                routeDestinations = state.routeDestinations + intent.point
+            )
+            is SearchDockIntent.RouteDestinationRemoved -> state.copy(
+                routeDestinations = state.routeDestinations.filterNot { it.id == intent.id }
+            )
             is SearchDockIntent.SearchQueryChanged -> {
                 val trimmedQuery = intent.query.trim()
                 state.copy(

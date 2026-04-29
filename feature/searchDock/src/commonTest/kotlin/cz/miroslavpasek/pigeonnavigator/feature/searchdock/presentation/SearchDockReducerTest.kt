@@ -24,6 +24,51 @@ class SearchDockReducerTest {
     }
 
     @Test
+    fun addingRouteDestinationOpensRoutePlanner() {
+        val point = SearchDockRoutePoint(
+            id = "airport:LKPR",
+            title = "LKPR",
+            latitude = 50.1008,
+            longitude = 14.26
+        )
+
+        val next = reducer.reduce(SearchDockState(), SearchDockIntent.RouteDestinationAdded(point))
+
+        assertTrue(next.isExpanded)
+        assertTrue(next.isRoutePlanning)
+        assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
+        assertEquals(SearchDockRoute.RoutePlanner, next.selectedRouteOverride)
+        assertEquals(listOf(point), next.routeDestinations)
+    }
+
+    @Test
+    fun removingRouteDestinationDeletesOnlyMatchingPoint() {
+        val first = SearchDockRoutePoint(
+            id = "airport:LKPR",
+            title = "LKPR",
+            latitude = 50.1008,
+            longitude = 14.26
+        )
+        val second = SearchDockRoutePoint(
+            id = "navaid:PRG",
+            title = "PRG",
+            latitude = 50.0,
+            longitude = 14.0
+        )
+        val state = SearchDockState(
+            isExpanded = true,
+            isRoutePlanning = true,
+            selectedRouteOverride = SearchDockRoute.RoutePlanner,
+            routeDestinations = listOf(first, second)
+        )
+
+        val next = reducer.reduce(state, SearchDockIntent.RouteDestinationRemoved(first.id))
+
+        assertEquals(listOf(second), next.routeDestinations)
+        assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
+    }
+
+    @Test
     fun mapTapRouteAlwaysAvailable() {
         val next = reducer.reduce(SearchDockState(), SearchDockIntent.MapSelectionChanged(hasSelection = true))
 

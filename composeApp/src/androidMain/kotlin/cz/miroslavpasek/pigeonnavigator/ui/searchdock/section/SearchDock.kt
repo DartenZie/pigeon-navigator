@@ -55,6 +55,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -93,7 +94,8 @@ fun SearchDock(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit = {},
     onMapTapDetailRequested: (key: String) -> Unit = {},
     onMapTapDetailClosed: () -> Unit = {},
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     onFullExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -315,6 +317,7 @@ fun SearchDock(
                     onMapTapDetailRequested = onMapTapDetailRequested,
                     onMapTapDetailClosed = onMapTapDetailClosed,
                     onAddToRouteClicked = onAddToRouteClicked,
+                    onRouteDestinationRemoved = onRouteDestinationRemoved,
                     onContentScrollStarted = {
                         if (dockSize == AndroidSearchDockSize.Half) {
                             updateDockSize(AndroidSearchDockSize.Full)

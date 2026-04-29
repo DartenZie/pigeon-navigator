@@ -53,7 +53,9 @@ struct HUDSearchBar: View {
     var onMapTapAirportTap: (MapTapAirportItem) -> Void = { _ in }
     var onMapTapAirspaceTap: (MapTapAirspaceItem) -> Void = { _ in }
     var onMapTapNavaidTap: (MapTapNavaidItem) -> Void = { _ in }
-    var onAddToRouteTap: () -> Void = {}
+    var onAddSearchResultToRouteTap: (SearchDockResultViewItem) -> Void = { _ in }
+    var onAddNearbyPoiToRouteTap: (SearchDockPoiViewItem) -> Void = { _ in }
+    var onAddMapTapToRouteTap: (String, String, Double, Double) -> Void = { _, _, _, _ in }
     var minimumSearchQueryLength: Int = 2
     var searchDebounceDelay: TimeInterval = 0.3
 
@@ -230,10 +232,10 @@ struct HUDSearchBar: View {
                 dock: dock,
                 minimumQueryLength: minimumSearchQueryLength,
                 onResultTap: onSearchResultTap,
-                onAddToRouteTap: onAddToRouteTap
+                onAddToRouteTap: onAddSearchResultToRouteTap
             )
         case .routePlanner:
-            HUDSearchRoutePlannerPage()
+            HUDSearchRoutePlannerPage(dock: dock)
         case .mapTap:
             HUDSearchMapTapPage(
                 mapTapLookup: mapTapLookup,
@@ -241,13 +243,13 @@ struct HUDSearchBar: View {
                 onAirportTap: onMapTapAirportTap,
                 onAirspaceTap: onMapTapAirspaceTap,
                 onNavaidTap: onMapTapNavaidTap,
-                onAddToRouteTap: onAddToRouteTap
+                onAddToRouteTap: onAddMapTapToRouteTap
             )
         case .nearby:
             HUDSearchNearbyPage(
                 dock: dock,
                 onPoiTap: onNearbyPoiTap,
-                onAddToRouteTap: onAddToRouteTap
+                onAddToRouteTap: onAddNearbyPoiToRouteTap
             )
         }
     }

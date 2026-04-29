@@ -2,9 +2,14 @@ package cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal
 
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
+import cz.miroslavpasek.pigeonnavigator.domain.aviation.GeoPoint
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
+import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
+import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import kotlin.math.roundToInt
 
 /**
@@ -109,4 +114,67 @@ internal fun SearchDockRoute.label(): String = when (this) {
     SearchDockRoute.Search -> "Search"
     SearchDockRoute.RoutePlanner -> "Plan"
     SearchDockRoute.MapTap -> "Map Tap"
+}
+
+internal fun routeLabelForIndex(index: Int): String {
+    return ('A'.code + index).toChar().toString()
+}
+
+internal fun SearchDockPoiItem.toRoutePoint(): SearchDockRoutePoint = SearchDockRoutePoint(
+    id = id,
+    title = title,
+    latitude = latitude,
+    longitude = longitude,
+)
+
+internal fun SearchResult.toRoutePoint(): SearchDockRoutePoint = when (this) {
+    is SearchResult.Airport -> SearchDockRoutePoint(id, title, latitude, longitude)
+    is SearchResult.Navaid -> SearchDockRoutePoint(id, title, latitude, longitude)
+    is SearchResult.Airspace -> SearchDockRoutePoint(id, title, centerLatitude, centerLongitude)
+}
+
+internal fun MapTapRecord.toRoutePoint(): SearchDockRoutePoint = when (this) {
+    is MapTapRecord.AirportRecord -> SearchDockRoutePoint(
+        id = "airport:${value.airport.id}",
+        title = value.airport.id,
+        latitude = value.airport.latitude,
+        longitude = value.airport.longitude,
+    )
+
+    is MapTapRecord.NavaidRecord -> SearchDockRoutePoint(
+        id = "navaid:${value.navaid.id}",
+        title = value.navaid.id,
+        latitude = value.navaid.latitude,
+        longitude = value.navaid.longitude,
+    )
+
+    is MapTapRecord.AirspaceRecord -> {
+        val bounds = value.points.toBounds()
+        SearchDockRoutePoint(
+            id = "airspace:${value.id}",
+            title = value.name.ifBlank { value.id },
+            latitude = bounds?.let { (it.minLatitude + it.maxLatitude) / 2.0 } ?: 0.0,
+            longitude = bounds?.let { (it.minLongitude + it.maxLongitude) / 2.0 } ?: 0.0,
+        )
+    }
+}
+
+private fun List<GeoPoint>.toBounds(): GeoBounds? {
+    if (isEmpty()) return null
+    var minLatitude = first().latitude
+    var maxLatitude = first().latitude
+    var minLongitude = first().longitude
+    var maxLongitude = first().longitude
+    for (point in drop(1)) {
+        minLatitude = minOf(minLatitude, point.latitude)
+        maxLatitude = maxOf(maxLatitude, point.latitude)
+        minLongitude = minOf(minLongitude, point.longitude)
+        maxLongitude = maxOf(maxLongitude, point.longitude)
+    }
+    return GeoBounds(
+        minLatitude = minLatitude,
+        minLongitude = minLongitude,
+        maxLatitude = maxLatitude,
+        maxLongitude = maxLongitude,
+    )
 }
