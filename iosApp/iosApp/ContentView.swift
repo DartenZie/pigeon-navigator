@@ -233,7 +233,7 @@ struct ContentView: View {
                         .modifier(GlassBubbleStyle(shape: Circle()))
                         .padding(.trailing, settingsTrailingPadding)
                         .sheet(isPresented: $isSettingsPresented) {
-                            SettingsView(viewModel: appSettings)
+                            SettingsScreen(viewModel: appSettings)
                         }
                     }
                     .frame(height: settingsButtonSize)
