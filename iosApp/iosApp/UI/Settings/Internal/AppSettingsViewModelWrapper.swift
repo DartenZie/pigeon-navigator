@@ -9,6 +9,7 @@ import Shared
 @MainActor
 final class AppSettingsViewModelWrapper: ObservableObject {
     private let handle: SettingsHandle
+    private var isDisposed = false
 
     // Unit preferences
     @Published var distanceUnit: DomainDistanceUnit = DomainDistanceUnit.nauticalmiles
@@ -61,6 +62,12 @@ final class AppSettingsViewModelWrapper: ObservableObject {
         ) { _ in }
     }
 
+    func updateUnits(distance: DomainDistanceUnit, altitude: DomainAltitudeUnit, speed: DomainSpeedUnit) {
+        handle.updateUnits(
+            units: DomainUnitPreferences(distance: distance, altitude: altitude, speed: speed)
+        ) { _ in }
+    }
+
     func updateTimeToCollisionWarningSeconds(_ seconds: Int32) {
         handle.updateTimeToCollisionWarningSeconds(seconds: seconds) { _ in }
     }
@@ -103,7 +110,15 @@ final class AppSettingsViewModelWrapper: ObservableObject {
         ) { _ in }
     }
 
-    deinit {
+    func dispose() {
+        guard !isDisposed else { return }
+        isDisposed = true
         handle.close()
+    }
+
+    deinit {
+        if !isDisposed {
+            handle.close()
+        }
     }
 }

@@ -14,12 +14,12 @@ struct iOSApp: App {
         WindowGroup {
             HomeScreen(appSettings: appSettings)
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) {
             // Tear down the shared SettingsHandle subscription when the scene is
             // no longer active. The handle is recreated lazily on next launch via
             // the `@StateObject` above (which itself recreates the wrapper if the
             // App is fully reinstantiated).
-            if newPhase == .background {
+            if scenePhase == .background {
                 appSettings.dispose()
             }
         }
