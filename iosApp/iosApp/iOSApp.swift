@@ -12,7 +12,7 @@ struct iOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(appSettings: appSettings)
+            HomeScreen(appSettings: appSettings)
         }
         .onChange(of: scenePhase) { newPhase in
             // Tear down the shared SettingsHandle subscription when the scene is
