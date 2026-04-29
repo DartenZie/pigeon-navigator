@@ -4,7 +4,7 @@ import Shared
 struct HUDSearchNearbyPage: View {
     @ObservedObject var dock: SearchDockViewModelWrapper
     var onPoiTap: (SearchDockPoiViewItem) -> Void = { _ in }
-    var onAddToRouteTap: () -> Void = {}
+    var onAddToRouteTap: (SearchDockPoiViewItem) -> Void = { _ in }
 
     @State private var selectedPoiID: String? = nil
 
@@ -100,7 +100,7 @@ struct HUDSearchNearbyPage: View {
 
         VStack(spacing: 8) {
             detailActionButton(title: "Locate on Map", systemImage: "mappin.and.ellipse") { onPoiTap(item) }
-            detailActionButton(title: "Add to Route", systemImage: "plus") { onAddToRouteTap() }
+            detailActionButton(title: "Add to Route", systemImage: "plus") { onAddToRouteTap(item) }
         }
         .padding(.top, 4)
     }

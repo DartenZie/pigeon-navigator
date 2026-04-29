@@ -22,6 +22,7 @@ import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardLevel
 import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainHazardSample
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.map.MapStyleProvider
 import kotlinx.coroutines.delay
 import org.maplibre.android.style.expressions.Expression.eq
@@ -30,9 +31,15 @@ import org.maplibre.android.style.expressions.Expression.literal
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.layers.PropertyFactory.circleColor
 import org.maplibre.android.style.layers.PropertyFactory.circleOpacity
 import org.maplibre.android.style.layers.PropertyFactory.circleRadius
+import org.maplibre.android.style.layers.PropertyFactory.textColor
+import org.maplibre.android.style.layers.PropertyFactory.textField
+import org.maplibre.android.style.layers.PropertyFactory.textHaloColor
+import org.maplibre.android.style.layers.PropertyFactory.textHaloWidth
+import org.maplibre.android.style.layers.PropertyFactory.textSize
 import org.maplibre.android.style.layers.PropertyFactory.lineColor
 import org.maplibre.android.style.layers.PropertyFactory.lineOpacity
 import org.maplibre.android.style.layers.PropertyFactory.lineWidth
@@ -87,6 +94,14 @@ private const val USER_GUIDANCE_LOOKAHEAD_METERS = 20_000.0
 private const val USER_GUIDANCE_CONE_HALF_ANGLE_DEGREES = 25.0
 private const val USER_GUIDANCE_MAX_MINUTE_MARKS = 12
 private const val USER_GUIDANCE_TICK_MARK_LENGTH_METERS = 180.0
+private const val ROUTE_LINE_SOURCE_ID = "route-line-source"
+private const val ROUTE_LINE_LAYER_ID = "route-line-layer"
+private const val ROUTE_POINT_SOURCE_ID = "route-point-source"
+private const val ROUTE_POINT_CIRCLE_LAYER_ID = "route-point-circle-layer"
+private const val ROUTE_POINT_LABEL_LAYER_ID = "route-point-label-layer"
+private const val ROUTE_POINT_LABEL_KEY = "label"
+private const val ROUTE_LINE_COLOR = "#00A6FF"
+private const val ROUTE_POINT_COLOR = "#00A6FF"
 private const val EARTH_RADIUS_METERS = 6_371_000.0
 private const val AIRSPACE_FIT_PADDING_PX = 80
 private val PRAGUE = LatLng(50.0755, 14.4378)
@@ -96,6 +111,7 @@ fun NavigateScreen(
     modifier: Modifier = Modifier,
     location: FlightLocation?,
     terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
+    routeDestinations: List<SearchDockRoutePoint> = emptyList(),
     followUser: Boolean = true,
     onDirectionChange: (Double) -> Unit = {},
     onMapInteraction: () -> Unit = {},
@@ -179,8 +195,10 @@ fun NavigateScreen(
                         ensureTerrainHazardLayers(it)
                         ensureUserLocationLayers(it)
                         ensureUserGuidanceLayers(it)
+                        ensureRouteLayers(it)
                         updateUserLocationLayers(it, latestLocation)
                         updateUserGuidanceLayers(it, latestLocation)
+                        updateRouteLayers(it, latestLocation, routeDestinations)
                         map.uiSettings.isAttributionEnabled = false
                         map.uiSettings.isLogoEnabled = false
                         map.uiSettings.isCompassEnabled = false
@@ -214,10 +232,12 @@ fun NavigateScreen(
                     ensureTerrainHazardLayers(style)
                     ensureUserLocationLayers(style)
                     ensureUserGuidanceLayers(style)
+                    ensureRouteLayers(style)
                     style.getSourceAs<GeoJsonSource>(TERRAIN_SOURCE_ID)
                         ?.setGeoJson(buildTerrainHazardFeatureCollection(terrainHazardSamples))
                     updateUserLocationLayers(style, location)
                     updateUserGuidanceLayers(style, location)
+                    updateRouteLayers(style, location, routeDestinations)
                 }
 
                 if (!didAttachCameraListener) {
@@ -484,6 +504,101 @@ private fun updateUserGuidanceLayers(style: Style, location: FlightLocation?) {
         ?.setGeoJson(buildUserGuidanceLineFeatureCollection(location))
     style.getSourceAs<GeoJsonSource>(USER_GUIDANCE_MINUTE_MARK_SOURCE_ID)
         ?.setGeoJson(buildUserGuidanceMinuteMarkFeatureCollection(location))
+}
+
+private fun ensureRouteLayers(style: Style) {
+    if (style.getSourceAs<GeoJsonSource>(ROUTE_LINE_SOURCE_ID) == null) {
+        style.addSource(GeoJsonSource(ROUTE_LINE_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf())))
+    }
+
+    if (style.getLayer(ROUTE_LINE_LAYER_ID) == null) {
+        style.addLayer(
+            LineLayer(ROUTE_LINE_LAYER_ID, ROUTE_LINE_SOURCE_ID)
+                .withProperties(
+                    lineColor(ROUTE_LINE_COLOR),
+                    lineWidth(3.5f),
+                    lineOpacity(0.92f)
+                )
+        )
+    }
+
+    if (style.getSourceAs<GeoJsonSource>(ROUTE_POINT_SOURCE_ID) == null) {
+        style.addSource(GeoJsonSource(ROUTE_POINT_SOURCE_ID, FeatureCollection.fromFeatures(arrayOf())))
+    }
+
+    if (style.getLayer(ROUTE_POINT_CIRCLE_LAYER_ID) == null) {
+        style.addLayer(
+            CircleLayer(ROUTE_POINT_CIRCLE_LAYER_ID, ROUTE_POINT_SOURCE_ID)
+                .withProperties(
+                    circleColor(ROUTE_POINT_COLOR),
+                    circleRadius(10f),
+                    circleOpacity(1f),
+                    org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth(2f),
+                    org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor("#FFFFFF")
+                )
+        )
+    }
+
+    if (style.getLayer(ROUTE_POINT_LABEL_LAYER_ID) == null) {
+        style.addLayer(
+            SymbolLayer(ROUTE_POINT_LABEL_LAYER_ID, ROUTE_POINT_SOURCE_ID)
+                .withProperties(
+                    textField(get(ROUTE_POINT_LABEL_KEY)),
+                    textSize(12f),
+                    textColor("#FFFFFF"),
+                    textHaloColor("#000000"),
+                    textHaloWidth(0.4f)
+                )
+        )
+    }
+}
+
+private fun updateRouteLayers(
+    style: Style,
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>
+) {
+    style.getSourceAs<GeoJsonSource>(ROUTE_LINE_SOURCE_ID)
+        ?.setGeoJson(buildRouteLineFeatureCollection(location, destinations))
+    style.getSourceAs<GeoJsonSource>(ROUTE_POINT_SOURCE_ID)
+        ?.setGeoJson(buildRoutePointFeatureCollection(location, destinations))
+}
+
+private fun buildRouteLineFeatureCollection(
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>
+): FeatureCollection {
+    val points = buildRoutePoints(location, destinations)
+    if (points.size < 2) {
+        return FeatureCollection.fromFeatures(arrayOf())
+    }
+
+    return FeatureCollection.fromFeatures(arrayOf(Feature.fromGeometry(LineString.fromLngLats(points))))
+}
+
+private fun buildRoutePointFeatureCollection(
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>
+): FeatureCollection {
+    val features = buildRoutePoints(location, destinations).mapIndexed { index, point ->
+        Feature.fromGeometry(point).apply {
+            addStringProperty(ROUTE_POINT_LABEL_KEY, routeLabelForIndex(index))
+        }
+    }
+
+    return FeatureCollection.fromFeatures(features)
+}
+
+private fun buildRoutePoints(
+    location: FlightLocation?,
+    destinations: List<SearchDockRoutePoint>
+): List<Point> {
+    if (location == null || location.requiresPermission || destinations.isEmpty()) {
+        return emptyList()
+    }
+
+    return listOf(Point.fromLngLat(location.longitude, location.latitude)) +
+        destinations.map { Point.fromLngLat(it.longitude, it.latitude) }
 }
 
 private fun buildUserGuidanceLineFeatureCollection(location: FlightLocation?): FeatureCollection {
@@ -788,6 +903,10 @@ private fun resolveDynamicDefaultZoom(
 private fun angularDistanceDegrees(from: Double, to: Double): Double {
     val diff = kotlin.math.abs(normalizeBearing(to) - normalizeBearing(from))
     return if (diff > 180.0) 360.0 - diff else diff
+}
+
+private fun routeLabelForIndex(index: Int): String {
+    return ('A'.code + index).toChar().toString()
 }
 
 private fun normalizeLongitude(rawLongitude: Double): Double {

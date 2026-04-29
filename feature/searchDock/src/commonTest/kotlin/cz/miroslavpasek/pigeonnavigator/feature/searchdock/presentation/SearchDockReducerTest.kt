@@ -24,6 +24,24 @@ class SearchDockReducerTest {
     }
 
     @Test
+    fun addingRouteDestinationOpensRoutePlanner() {
+        val point = SearchDockRoutePoint(
+            id = "airport:LKPR",
+            title = "LKPR",
+            latitude = 50.1008,
+            longitude = 14.26
+        )
+
+        val next = reducer.reduce(SearchDockState(), SearchDockIntent.RouteDestinationAdded(point))
+
+        assertTrue(next.isExpanded)
+        assertTrue(next.isRoutePlanning)
+        assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
+        assertEquals(SearchDockRoute.RoutePlanner, next.selectedRouteOverride)
+        assertEquals(listOf(point), next.routeDestinations)
+    }
+
+    @Test
     fun mapTapRouteAlwaysAvailable() {
         val next = reducer.reduce(SearchDockState(), SearchDockIntent.MapSelectionChanged(hasSelection = true))
 

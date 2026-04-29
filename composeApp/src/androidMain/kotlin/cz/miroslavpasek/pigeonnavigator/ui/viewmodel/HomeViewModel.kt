@@ -12,6 +12,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.terrain.TerrainWarningLevel
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.api.SearchDockStore
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarningStore
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
@@ -86,6 +87,10 @@ class HomeViewModel(
 
     fun onSearchDockRouteSelected(route: SearchDockRoute) {
         searchDockStore.send(SearchDockIntent.RouteSelected(route = route))
+    }
+
+    fun onRouteDestinationAdded(point: SearchDockRoutePoint) {
+        searchDockStore.send(SearchDockIntent.RouteDestinationAdded(point = point))
     }
 
     fun onMapTapDetailRequested(key: String) {

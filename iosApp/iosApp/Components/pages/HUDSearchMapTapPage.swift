@@ -7,7 +7,7 @@ struct HUDSearchMapTapPage: View {
     var onAirportTap: (MapTapAirportItem) -> Void = { _ in }
     var onAirspaceTap: (MapTapAirspaceItem) -> Void = { _ in }
     var onNavaidTap: (MapTapNavaidItem) -> Void = { _ in }
-    var onAddToRouteTap: () -> Void = {}
+    var onAddToRouteTap: (String, String, Double, Double) -> Void = { _, _, _, _ in }
 
     private var detailRecord: MapTapDetailRecord? {
         guard let key = dock.selectedMapTapDetailKey else { return nil }
@@ -151,7 +151,9 @@ struct HUDSearchMapTapPage: View {
 
         VStack(spacing: 8) {
             detailActionButton(title: "Locate on Map", systemImage: "mappin.and.ellipse") { detail.locate(self) }
-            detailActionButton(title: "Add to Route", systemImage: "plus") { onAddToRouteTap() }
+            detailActionButton(title: "Add to Route", systemImage: "plus") {
+                onAddToRouteTap(detail.routeId, detail.title, detail.latitude, detail.longitude)
+            }
         }
         .padding(.top, 4)
     }
@@ -206,6 +208,30 @@ private enum MapTapDetailRecord {
                 DetailRow(label: "Bounds NE", value: String(format: "%.4f, %.4f", s.maxLatitude, s.maxLongitude)),
                 DetailRow(label: "Bounds SW", value: String(format: "%.4f, %.4f", s.minLatitude, s.minLongitude))
             ]
+        }
+    }
+
+    var routeId: String {
+        switch self {
+        case .airport(let a): return "airport:\(a.id)"
+        case .navaid(let n): return "navaid:\(n.ident)"
+        case .airspace(let s): return "airspace:\(s.id)"
+        }
+    }
+
+    var latitude: Double {
+        switch self {
+        case .airport(let a): return a.latitude
+        case .navaid(let n): return n.latitude
+        case .airspace(let s): return s.latitude
+        }
+    }
+
+    var longitude: Double {
+        switch self {
+        case .airport(let a): return a.longitude
+        case .navaid(let n): return n.longitude
+        case .airspace(let s): return s.longitude
         }
     }
 

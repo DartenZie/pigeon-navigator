@@ -30,6 +30,7 @@ import cz.miroslavpasek.pigeonnavigator.feature.searchdock.api.SearchDockStore
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.di.searchDockFeatureModule
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.api.TerrainWarningStore
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarningFeatureModule
@@ -487,6 +488,25 @@ class SearchDockHandle(
         )
     }
 
+    /** Adds a route destination and opens the shared route planner. */
+    fun addRouteDestination(
+        id: String,
+        title: String,
+        latitude: Double,
+        longitude: Double
+    ) {
+        store.send(
+            SearchDockIntent.RouteDestinationAdded(
+                SearchDockRoutePoint(
+                    id = id,
+                    title = title,
+                    latitude = latitude,
+                    longitude = longitude
+                )
+            )
+        )
+    }
+
     /** Stops active jobs and closes the underlying store. */
     fun close() {
         stopState()
@@ -520,6 +540,13 @@ data class SearchDockResultViewItem(
     val maxLongitude: Double? = null
 )
 
+data class SearchDockRoutePointViewItem(
+    val id: String,
+    val title: String,
+    val latitude: Double,
+    val longitude: Double
+)
+
 data class SearchDockViewState(
     val isExpanded: Boolean = false,
     val activeRouteTag: String = SearchDockRoute.Nearby.toTag(),
@@ -533,6 +560,7 @@ data class SearchDockViewState(
     val isNearbyPoiLoading: Boolean = false,
     val nearbyPoiErrorMessage: String? = null,
     val nearbyPoiItems: List<SearchDockPoiViewItem> = emptyList(),
+    val routeDestinations: List<SearchDockRoutePointViewItem> = emptyList(),
     val selectedMapTapDetailKey: String? = null
 )
 
@@ -572,6 +600,14 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
                 kindLabel = it.kindLabel,
                 frequency = it.frequency,
                 distanceLabel = it.distanceMeters.toDistanceLabel(),
+                latitude = it.latitude,
+                longitude = it.longitude
+            )
+        },
+        routeDestinations = routeDestinations.map {
+            SearchDockRoutePointViewItem(
+                id = it.id,
+                title = it.title,
                 latitude = it.latitude,
                 longitude = it.longitude
             )

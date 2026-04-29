@@ -18,6 +18,7 @@ struct NavigateView: UIViewRepresentable {
     var locationSpeedMetersPerSecond: Double = 0
     var locationBearingDegrees: Double? = nil
     var terrainHazardPoints: [TerrainHazardOverlayPoint] = []
+    var routeDestinations: [SearchDockRoutePointViewItem] = []
     var followUser: Bool = true
     var zoomLevel = 10.5
     var onDirectionChange: (CLLocationDirection) -> Void = { _ in }
@@ -46,6 +47,11 @@ struct NavigateView: UIViewRepresentable {
     private let terrainHazardNearLayerId = "terrain-hazard-near-layer"
     private let terrainHazardConflictSourceId = "terrain-hazard-conflict-source"
     private let terrainHazardConflictLayerId = "terrain-hazard-conflict-layer"
+    private let routeLineSourceId = "route-line-source"
+    private let routeLineLayerId = "route-line-layer"
+    private let routePointSourceId = "route-point-source"
+    private let routePointCircleLayerId = "route-point-circle-layer"
+    private let routePointLabelLayerId = "route-point-label-layer"
     private let userGuidanceLookAheadMeters = 20_000.0
     private let userGuidanceConeHalfAngleDegrees = 25.0
     private let userGuidanceMaxMinuteMarks = 12
@@ -234,6 +240,16 @@ struct NavigateView: UIViewRepresentable {
             maxMinuteMarks: userGuidanceMaxMinuteMarks,
             tickMarkLengthMeters: userGuidanceTickMarkLengthMeters,
             minSpeedMetersPerSecond: userGuidanceMinSpeedMetersPerSecond
+        )
+        context.coordinator.renderRouteOverlay(
+            mapView,
+            location: location,
+            destinations: routeDestinations,
+            lineSourceId: routeLineSourceId,
+            lineLayerId: routeLineLayerId,
+            pointSourceId: routePointSourceId,
+            pointCircleLayerId: routePointCircleLayerId,
+            pointLabelLayerId: routePointLabelLayerId
         )
 
         if context.coordinator.lastResetNorthToken != resetNorthToken {
@@ -698,6 +714,101 @@ struct NavigateView: UIViewRepresentable {
             } else {
                 accuracySource.shape = nil
             }
+        }
+
+        func renderRouteOverlay(
+            _ mapView: MLNMapView,
+            location: CLLocationCoordinate2D?,
+            destinations: [SearchDockRoutePointViewItem],
+            lineSourceId: String,
+            lineLayerId: String,
+            pointSourceId: String,
+            pointCircleLayerId: String,
+            pointLabelLayerId: String
+        ) {
+            guard let style = mapView.style else { return }
+
+            let lineSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: lineSourceId) as? MLNShapeSource {
+                lineSource = existing
+            } else {
+                lineSource = MLNShapeSource(identifier: lineSourceId, shape: nil, options: nil)
+                style.addSource(lineSource)
+            }
+
+            if style.layer(withIdentifier: lineLayerId) == nil {
+                let layer = MLNLineStyleLayer(identifier: lineLayerId, source: lineSource)
+                layer.lineColor = NSExpression(forConstantValue: UIColor(red: 0.0, green: 0.65, blue: 1.0, alpha: 1.0))
+                layer.lineWidth = NSExpression(forConstantValue: 3.5)
+                layer.lineOpacity = NSExpression(forConstantValue: 0.92)
+                style.addLayer(layer)
+            }
+
+            let pointSource: MLNShapeSource
+            if let existing = style.source(withIdentifier: pointSourceId) as? MLNShapeSource {
+                pointSource = existing
+            } else {
+                pointSource = MLNShapeSource(identifier: pointSourceId, shape: nil, options: nil)
+                style.addSource(pointSource)
+            }
+
+            if style.layer(withIdentifier: pointCircleLayerId) == nil {
+                let layer = MLNCircleStyleLayer(identifier: pointCircleLayerId, source: pointSource)
+                layer.circleColor = NSExpression(forConstantValue: UIColor(red: 0.0, green: 0.65, blue: 1.0, alpha: 1.0))
+                layer.circleRadius = NSExpression(forConstantValue: 10)
+                layer.circleOpacity = NSExpression(forConstantValue: 1.0)
+                layer.circleStrokeColor = NSExpression(forConstantValue: UIColor.white)
+                layer.circleStrokeWidth = NSExpression(forConstantValue: 2)
+                style.addLayer(layer)
+            }
+
+            if style.layer(withIdentifier: pointLabelLayerId) == nil {
+                let layer = MLNSymbolStyleLayer(identifier: pointLabelLayerId, source: pointSource)
+                layer.text = NSExpression(forKeyPath: "label")
+                layer.textColor = NSExpression(forConstantValue: UIColor.white)
+                layer.textHaloColor = NSExpression(forConstantValue: UIColor.black)
+                layer.textHaloWidth = NSExpression(forConstantValue: 0.4)
+                layer.textFontSize = NSExpression(forConstantValue: 12)
+                style.addLayer(layer)
+            }
+
+            let routeCoordinates = buildRouteCoordinates(location: location, destinations: destinations)
+            lineSource.shape = buildRouteLineShape(coordinates: routeCoordinates)
+            pointSource.shape = buildRoutePointShape(coordinates: routeCoordinates)
+        }
+
+        private func buildRouteCoordinates(
+            location: CLLocationCoordinate2D?,
+            destinations: [SearchDockRoutePointViewItem]
+        ) -> [CLLocationCoordinate2D] {
+            guard let location, !destinations.isEmpty else { return [] }
+            return [location] + destinations.map {
+                CLLocationCoordinate2D(latitude: $0.latitude, longitude: $0.longitude)
+            }
+        }
+
+        private func buildRouteLineShape(coordinates: [CLLocationCoordinate2D]) -> MLNShape? {
+            guard coordinates.count >= 2 else { return nil }
+            var mutableCoordinates = coordinates
+            return mutableCoordinates.withUnsafeMutableBufferPointer { buffer in
+                MLNPolylineFeature(coordinates: buffer.baseAddress!, count: UInt(buffer.count))
+            }
+        }
+
+        private func buildRoutePointShape(coordinates: [CLLocationCoordinate2D]) -> MLNShape? {
+            guard !coordinates.isEmpty else { return nil }
+            let shapes: [MLNShape] = coordinates.enumerated().map { index, coordinate in
+                let point = MLNPointFeature()
+                point.coordinate = coordinate
+                point.attributes = ["label": routeLabel(index)]
+                return point
+            }
+            return MLNShapeCollectionFeature(shapes: shapes)
+        }
+
+        private func routeLabel(_ index: Int) -> String {
+            guard let scalar = UnicodeScalar(65 + index) else { return "?" }
+            return String(Character(scalar))
         }
 
         private func buildAccuracyPolygon(

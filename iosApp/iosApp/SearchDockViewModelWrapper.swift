@@ -54,6 +54,7 @@ final class SearchDockViewModelWrapper: ObservableObject {
     @Published var isNearbyPoiLoading: Bool = false
     @Published var nearbyPoiErrorMessage: String? = nil
     @Published var nearbyPoiItems: [SearchDockPoiViewItem] = []
+    @Published var routeDestinations: [SearchDockRoutePointViewItem] = []
     @Published var selectedMapTapDetailKey: String? = nil
 
     init() {
@@ -74,6 +75,7 @@ final class SearchDockViewModelWrapper: ObservableObject {
             self.isNearbyPoiLoading = state.isNearbyPoiLoading
             self.nearbyPoiErrorMessage = state.nearbyPoiErrorMessage
             self.nearbyPoiItems = state.nearbyPoiItems
+            self.routeDestinations = state.routeDestinations
             self.selectedMapTapDetailKey = state.selectedMapTapDetailKey
         }
     }
@@ -125,6 +127,10 @@ final class SearchDockViewModelWrapper: ObservableObject {
 
     func onUserLocationChanged(latitude: Double, longitude: Double) {
         handle.onUserLocationChanged(latitude: latitude, longitude: longitude)
+    }
+
+    func addRouteDestination(id: String, title: String, latitude: Double, longitude: Double) {
+        handle.addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
     }
 
     /// Opens the map-tap detail panel for the given key (e.g. "airport:LKAA").

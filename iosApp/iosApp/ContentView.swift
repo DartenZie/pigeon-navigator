@@ -26,8 +26,7 @@ struct ContentView: View {
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
     @StateObject private var dock = SearchDockViewModelWrapper()
     @StateObject private var locationPermission = LocationPermissionController()
-    @ObservedObject var appSettings: AppSettingsViewModelWrapper
-    @State private var isSettingsPresented: Bool = false
+    @StateObject private var appSettings = AppSettingsViewModelWrapper()
     private let observer = LocationObserver()
     private let settingsButtonSize: CGFloat = 52
     private let settingsTopPadding: CGFloat = 12
@@ -35,11 +34,11 @@ struct ContentView: View {
     private let hudClusterGapFromSearchBar: CGFloat = 12
     
     var body: some View {
-        let speed = locationSpeedMetersPerSecond.isFinite
-            ? displaySpeed(metersPerSecond: max(locationSpeedMetersPerSecond, 0), unit: appSettings.speedUnit)
+        let speedKmh = locationSpeedMetersPerSecond.isFinite
+            ? Int((max(locationSpeedMetersPerSecond, 0) * 3.6).rounded())
             : 0
-        let altitude = locationAltitudeMeters.isFinite
-            ? displayAltitude(meters: locationAltitudeMeters, unit: appSettings.altitudeUnit)
+        let altitudeMeters = locationAltitudeMeters.isFinite
+            ? Int(locationAltitudeMeters.rounded())
             : 0
 
         GeometryReader { proxy in
@@ -52,6 +51,7 @@ struct ContentView: View {
                     locationSpeedMetersPerSecond: locationSpeedMetersPerSecond,
                     locationBearingDegrees: locationBearingDegrees,
                     terrainHazardPoints: terrainWarning.hazardPoints,
+                    routeDestinations: dock.routeDestinations,
                     followUser: true,
                     onDirectionChange: { direction in
                         mapDirection = direction
@@ -161,7 +161,15 @@ struct ContentView: View {
                             )
                         )
                     },
-                    onAddToRouteTap: {},
+                    onAddSearchResultToRouteTap: { item in
+                        addRouteDestination(id: item.id, title: item.title, latitude: item.latitude, longitude: item.longitude)
+                    },
+                    onAddNearbyPoiToRouteTap: { item in
+                        addRouteDestination(id: item.id, title: item.title, latitude: item.latitude, longitude: item.longitude)
+                    },
+                    onAddMapTapToRouteTap: { id, title, latitude, longitude in
+                        addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
+                    },
                     minimumSearchQueryLength: Int(appSettings.minimumQueryLength),
                     searchDebounceDelay: TimeInterval(appSettings.searchDebounceMillis) / 1000.0
                 )
@@ -171,10 +179,8 @@ struct ContentView: View {
                 
                 if hudSize != .full {
                     HUDCluster(
-                        speed: speed,
-                        speedUnit: speedUnitLabel(appSettings.speedUnit),
-                        altitude: altitude,
-                        altitudeUnit: altitudeUnitLabel(appSettings.altitudeUnit),
+                        speed: speedKmh,
+                        altitude: altitudeMeters,
                         mapDirection: mapDirection,
                         isRecenterVisible: isAwayFromUserLocation,
                         onCompassTap: { resetNorthToken += 1 },
@@ -222,7 +228,7 @@ struct ContentView: View {
                             Spacer(minLength: 0)
                         }
 
-                        Button(action: { isSettingsPresented = true }) {
+                        Button(action: {}) {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundStyle(.primary)
@@ -232,9 +238,6 @@ struct ContentView: View {
                         .buttonStyle(.plain)
                         .modifier(GlassBubbleStyle(shape: Circle()))
                         .padding(.trailing, settingsTrailingPadding)
-                        .sheet(isPresented: $isSettingsPresented) {
-                            SettingsView(viewModel: appSettings)
-                        }
                     }
                     .frame(height: settingsButtonSize)
                     .padding(.top, settingsTopPadding)
@@ -245,58 +248,6 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(4)
             }
-        }
-    }
-
-    private func displayAltitude(meters: Double, unit: DomainAltitudeUnit) -> Int {
-        switch unit {
-        case .feet:
-            return Int((meters * 3.280839895).rounded())
-        case .meters:
-            return Int(meters.rounded())
-        default:
-            return Int(meters.rounded())
-        }
-    }
-
-    private func displaySpeed(metersPerSecond: Double, unit: DomainSpeedUnit) -> Int {
-        switch unit {
-        case .knots:
-            return Int((metersPerSecond * 1.943844492).rounded())
-        case .kilometersperhour:
-            return Int((metersPerSecond * 3.6).rounded())
-        case .milesperhour:
-            return Int((metersPerSecond * 2.236936292).rounded())
-        case .meterspersecond:
-            return Int(metersPerSecond.rounded())
-        default:
-            return Int((metersPerSecond * 3.6).rounded())
-        }
-    }
-
-    private func altitudeUnitLabel(_ unit: DomainAltitudeUnit) -> String {
-        switch unit {
-        case .feet:
-            return "ft"
-        case .meters:
-            return "m"
-        default:
-            return "m"
-        }
-    }
-
-    private func speedUnitLabel(_ unit: DomainSpeedUnit) -> String {
-        switch unit {
-        case .knots:
-            return "kt"
-        case .kilometersperhour:
-            return "km/h"
-        case .milesperhour:
-            return "mph"
-        case .meterspersecond:
-            return "m/s"
-        default:
-            return "km/h"
         }
     }
 
@@ -326,6 +277,15 @@ struct ContentView: View {
         if hudSize != .bar {
             withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
                 hudSize = .bar
+            }
+        }
+    }
+
+    private func addRouteDestination(id: String, title: String, latitude: Double, longitude: Double) {
+        dock.addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
+        if hudSize == .bar {
+            withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                hudSize = .half
             }
         }
     }

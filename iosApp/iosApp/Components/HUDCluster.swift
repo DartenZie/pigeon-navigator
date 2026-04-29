@@ -10,9 +10,7 @@ import CoreLocation
 
 struct HUDCluster: View {
     let speed: Int
-    let speedUnit: String
     let altitude: Int
-    let altitudeUnit: String
     let mapDirection: CLLocationDirection
     let isRecenterVisible: Bool
     let onCompassTap: () -> Void
@@ -34,8 +32,8 @@ struct HUDCluster: View {
     var body: some View {
         HStack(alignment: .bottom) {
             VStack(spacing: gap) {
-                IndicatorBubble(value: altitude, unit: altitudeUnit, size: bubbleSize)
-                IndicatorBubble(value: speed, unit: speedUnit, size: bubbleSize)
+                IndicatorBubble(value: altitude, unit: "m", size: bubbleSize)
+                IndicatorBubble(value: speed, unit: "km/h", size: bubbleSize)
             }
 
             Spacer(minLength: 0)

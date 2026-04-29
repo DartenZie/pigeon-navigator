@@ -81,6 +81,7 @@ internal class RealSearchDockStore(
             is SearchDockIntent.RoutePlanningChanged,
             is SearchDockIntent.MapSelectionChanged,
             is SearchDockIntent.MapTapLookupChanged,
+            is SearchDockIntent.RouteDestinationAdded,
             is SearchDockIntent.SearchQueryChanged,
             SearchDockIntent.SearchCleared,
             SearchDockIntent.NearbyPoiLoadRequested,

@@ -34,6 +34,8 @@ sealed interface SearchDockIntent {
         val longitude: Double
     ) : SearchDockIntent
 
+    data class RouteDestinationAdded(val point: SearchDockRoutePoint) : SearchDockIntent
+
     data class SearchQueryChanged(val query: String) : SearchDockIntent
     data object SubmitSearch : SearchDockIntent
     data object SearchCleared : SearchDockIntent

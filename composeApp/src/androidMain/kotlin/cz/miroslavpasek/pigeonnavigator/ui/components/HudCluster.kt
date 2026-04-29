@@ -30,6 +30,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyNavaid
 import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlin.math.min
 
@@ -40,10 +41,8 @@ private val ControlSlideMotion = spring<IntOffset>(dampingRatio = 0.9f, stiffnes
 
 @Composable
 fun HudCluster(
-    speed: Int,
-    speedUnit: String,
-    altitude: Int,
-    altitudeUnit: String,
+    speedKmh: Int,
+    altitudeMeters: Int,
     mapDirection: Double,
     isRecenterVisible: Boolean,
     isSearchDockFullExpanded: Boolean,
@@ -66,7 +65,7 @@ fun HudCluster(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val normalizedDirection = normalizeDirection(mapDirection)
@@ -80,8 +79,8 @@ fun HudCluster(
         AnimatedVisibility(visible = !isSearchDockFullExpanded) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Column(verticalArrangement = Arrangement.spacedBy(BubbleGap)) {
-                    IndicatorBubble(value = altitude, unit = altitudeUnit)
-                    IndicatorBubble(value = speed, unit = speedUnit)
+                    IndicatorBubble(value = altitudeMeters, unit = "m")
+                    IndicatorBubble(value = speedKmh, unit = "km/h")
                 }
 
                 Spacer(modifier = Modifier.weight(1f))

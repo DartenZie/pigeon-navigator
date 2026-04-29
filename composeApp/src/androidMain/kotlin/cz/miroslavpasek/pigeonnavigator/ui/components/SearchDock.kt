@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -70,6 +71,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -102,7 +104,7 @@ fun SearchDock(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit = {},
     onMapTapDetailRequested: (key: String) -> Unit = {},
     onMapTapDetailClosed: () -> Unit = {},
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
     onFullExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -349,7 +351,7 @@ private fun ExpandedDockContent(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
-    onAddToRouteClicked: () -> Unit,
+    onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
     onContentScrollStarted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -392,7 +394,7 @@ private fun ExpandedDockContent(
                                 item = selectedNearbyPoi,
                                 onBack = { selectedNearbyPoiId = null },
                                 onLocateClicked = { onNearbyPoiSelected(selectedNearbyPoi) },
-                                onAddToRouteClicked = onAddToRouteClicked
+                                onAddToRouteClicked = { onAddToRouteClicked(selectedNearbyPoi.toRoutePoint()) }
                             )
                         }
                     } else {
@@ -432,7 +434,7 @@ private fun ExpandedDockContent(
                                 result = selectedSearchResult,
                                 onBack = { selectedSearchResultId = null },
                                 onLocateClicked = { onSearchResultSelected(selectedSearchResult) },
-                                onAddToRouteClicked = onAddToRouteClicked
+                                onAddToRouteClicked = { onAddToRouteClicked(selectedSearchResult.toRoutePoint()) }
                             )
                         }
                     } else {
@@ -469,11 +471,13 @@ private fun ExpandedDockContent(
                     item {
                         SectionTitle(text = "Route Planner")
                     }
-                    item {
-                        EmptyLine("Route planner workspace active")
-                    }
-                    item {
-                        EmptyLine("Add route planning controls here")
+                    if (state.routeDestinations.isEmpty()) {
+                        item { EmptyLine("Add a point to start a route from your current location") }
+                    } else {
+                        item { EmptyLine("A Current Location") }
+                        itemsIndexed(state.routeDestinations) { index, point ->
+                            EmptyLine("${routeLabelForIndex(index + 1)} ${point.title}")
+                        }
                     }
                 }
 
@@ -497,7 +501,7 @@ private fun ExpandedDockContent(
                                             onMapTapAirspaceSelected(detailRecord.value)
                                     }
                                 },
-                                onAddToRouteClicked = onAddToRouteClicked
+                                onAddToRouteClicked = { onAddToRouteClicked(detailRecord.toRoutePoint()) }
                             )
                         }
                     } else {
@@ -1031,6 +1035,71 @@ private fun mapTapRecordRows(record: MapTapRecord): List<Pair<String, String>> =
             add("Vertices" to s.points.size.toString())
         }
     }
+}
+
+private fun SearchDockPoiItem.toRoutePoint(): SearchDockRoutePoint {
+    return SearchDockRoutePoint(
+        id = id,
+        title = title,
+        latitude = latitude,
+        longitude = longitude
+    )
+}
+
+private fun SearchResult.toRoutePoint(): SearchDockRoutePoint = when (this) {
+    is SearchResult.Airport -> SearchDockRoutePoint(id, title, latitude, longitude)
+    is SearchResult.Navaid -> SearchDockRoutePoint(id, title, latitude, longitude)
+    is SearchResult.Airspace -> SearchDockRoutePoint(id, title, centerLatitude, centerLongitude)
+}
+
+private fun MapTapRecord.toRoutePoint(): SearchDockRoutePoint = when (this) {
+    is MapTapRecord.Airport -> SearchDockRoutePoint(
+        id = "airport:${value.airport.id}",
+        title = value.airport.id,
+        latitude = value.airport.latitude,
+        longitude = value.airport.longitude
+    )
+
+    is MapTapRecord.Navaid -> SearchDockRoutePoint(
+        id = "navaid:${value.navaid.id}",
+        title = value.navaid.id,
+        latitude = value.navaid.latitude,
+        longitude = value.navaid.longitude
+    )
+
+    is MapTapRecord.Airspace -> {
+        val bounds = value.points.toBounds()
+        SearchDockRoutePoint(
+            id = "airspace:${value.id}",
+            title = value.name.ifBlank { value.id },
+            latitude = bounds?.center?.latitude ?: 0.0,
+            longitude = bounds?.center?.longitude ?: 0.0
+        )
+    }
+}
+
+private fun List<cz.miroslavpasek.pigeonnavigator.domain.aviation.GeoPoint>.toBounds(): cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds? {
+    if (isEmpty()) return null
+    var minLatitude = first().latitude
+    var maxLatitude = first().latitude
+    var minLongitude = first().longitude
+    var maxLongitude = first().longitude
+    for (point in drop(1)) {
+        minLatitude = minOf(minLatitude, point.latitude)
+        maxLatitude = maxOf(maxLatitude, point.latitude)
+        minLongitude = minOf(minLongitude, point.longitude)
+        maxLongitude = maxOf(maxLongitude, point.longitude)
+    }
+    return cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds(
+        minLatitude = minLatitude,
+        minLongitude = minLongitude,
+        maxLatitude = maxLatitude,
+        maxLongitude = maxLongitude
+    )
+}
+
+private fun routeLabelForIndex(index: Int): String {
+    return ('A'.code + index).toChar().toString()
 }
 
 private fun formatAltitudeBand(airspace: Airspace): String {
