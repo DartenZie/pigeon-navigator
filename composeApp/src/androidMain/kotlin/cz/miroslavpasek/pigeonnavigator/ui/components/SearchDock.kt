@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PinDrop
 import androidx.compose.material.icons.filled.Route
@@ -105,6 +106,7 @@ fun SearchDock(
     onMapTapDetailRequested: (key: String) -> Unit = {},
     onMapTapDetailClosed: () -> Unit = {},
     onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     onFullExpandedChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -326,6 +328,7 @@ fun SearchDock(
                     onMapTapDetailRequested = onMapTapDetailRequested,
                     onMapTapDetailClosed = onMapTapDetailClosed,
                     onAddToRouteClicked = onAddToRouteClicked,
+                    onRouteDestinationRemoved = onRouteDestinationRemoved,
                     onContentScrollStarted = {
                         if (dockSize == AndroidSearchDockSize.Half) {
                             updateDockSize(AndroidSearchDockSize.Full)
@@ -352,6 +355,7 @@ private fun ExpandedDockContent(
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
     onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     onContentScrollStarted: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -476,7 +480,11 @@ private fun ExpandedDockContent(
                     } else {
                         item { EmptyLine("A Current Location") }
                         itemsIndexed(state.routeDestinations) { index, point ->
-                            EmptyLine("${routeLabelForIndex(index + 1)} ${point.title}")
+                            RouteDestinationRow(
+                                label = routeLabelForIndex(index + 1),
+                                point = point,
+                                onRemove = { onRouteDestinationRemoved(point.id) }
+                            )
                         }
                     }
                 }
@@ -1033,6 +1041,57 @@ private fun mapTapRecordRows(record: MapTapRecord): List<Pair<String, String>> =
             add("Lower" to (s.lowerLimitMeters?.let { "${it} m ${s.lowerLimitReference.orEmpty()}".trim() } ?: "SFC"))
             add("Upper" to (s.upperLimitMeters?.let { "${it} m ${s.upperLimitReference.orEmpty()}".trim() } ?: "UNL"))
             add("Vertices" to s.points.size.toString())
+        }
+    }
+}
+
+@Composable
+private fun RouteDestinationRow(
+    label: String,
+    point: SearchDockRoutePoint,
+    onRemove: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+        color = colors.surface.copy(alpha = 0.54f)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(28.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = colors.primary,
+                contentColor = colors.onPrimary
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Text(
+                text = point.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Remove route point",
+                    tint = colors.error,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

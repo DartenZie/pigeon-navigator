@@ -35,6 +35,7 @@ sealed interface SearchDockIntent {
     ) : SearchDockIntent
 
     data class RouteDestinationAdded(val point: SearchDockRoutePoint) : SearchDockIntent
+    data class RouteDestinationRemoved(val id: String) : SearchDockIntent
 
     data class SearchQueryChanged(val query: String) : SearchDockIntent
     data object SubmitSearch : SearchDockIntent

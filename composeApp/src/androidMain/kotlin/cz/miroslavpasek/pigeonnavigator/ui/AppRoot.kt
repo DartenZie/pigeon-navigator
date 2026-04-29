@@ -15,9 +15,12 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -35,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -42,6 +46,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +57,11 @@ import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.search.GeoBounds
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AltitudeUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.DistanceUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.SpeedUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockMapFocus
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.toMapFocus
 import cz.miroslavpasek.pigeonnavigator.ui.components.BubbleSize
@@ -60,6 +70,8 @@ import cz.miroslavpasek.pigeonnavigator.ui.components.CircularActionButton
 import cz.miroslavpasek.pigeonnavigator.ui.screens.NavigateScreen
 import cz.miroslavpasek.pigeonnavigator.ui.viewmodel.HomeViewModel
 import org.koin.androidx.compose.koinViewModel
+import org.koin.core.context.GlobalContext
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 @Composable
@@ -74,6 +86,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     var isSearchDockFullExpanded by remember { mutableStateOf(false) }
     var mapFocusToken by remember { mutableIntStateOf(0) }
     var mapFocus by remember { mutableStateOf<SearchDockMapFocus?>(null) }
+    var isSettingsVisible by remember { mutableStateOf(false) }
     var didAutoRequestLocationPermission by remember { mutableStateOf(false) }
     var didAskLocationPermission by remember { mutableStateOf(hasLocationPermission(context)) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -136,6 +149,11 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     }
 
     MaterialTheme {
+        if (isSettingsVisible) {
+            AppSettingsScreen(onBack = { isSettingsVisible = false })
+            return@MaterialTheme
+        }
+
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val settingsBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
                 12.dp + BubbleSize + 12.dp
@@ -178,7 +196,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                 )
 
                 CircularActionButton(
-                    onClick = {},
+                    onClick = { isSettingsVisible = true },
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
@@ -237,6 +255,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
                     onMapTapDetailRequested = vm::onMapTapDetailRequested,
                     onMapTapDetailClosed = vm::onMapTapDetailClosed,
                     onAddToRouteClicked = vm::onRouteDestinationAdded,
+                    onRouteDestinationRemoved = vm::onRouteDestinationRemoved,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(
@@ -248,6 +267,184 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
             }
         }
     }
+}
+
+@Composable
+private fun AppSettingsScreen(onBack: () -> Unit) {
+    val repository = remember { GlobalContext.get().get<AppSettingsRepository>() }
+    val settings by repository.settings.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Settings",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = onBack) {
+                    Text("Done")
+                }
+            }
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Units",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                SettingValueRow(
+                    label = "Distance",
+                    value = settings.units.distance.label(),
+                    onClick = {
+                        scope.launch {
+                            repository.updateUnits(
+                                settings.units.copy(distance = settings.units.distance.next())
+                            )
+                        }
+                    }
+                )
+                SettingValueRow(
+                    label = "Altitude",
+                    value = settings.units.altitude.label(),
+                    onClick = {
+                        scope.launch {
+                            repository.updateUnits(
+                                settings.units.copy(altitude = settings.units.altitude.next())
+                            )
+                        }
+                    }
+                )
+                SettingValueRow(
+                    label = "Speed",
+                    value = settings.units.speed.label(),
+                    onClick = {
+                        scope.launch {
+                            repository.updateUnits(
+                                settings.units.copy(speed = settings.units.speed.next())
+                            )
+                        }
+                    }
+                )
+
+                Text(
+                    text = "Warnings",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Terrain warning")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    repository.updateWarningPreferences(
+                                        WarningPreferences(
+                                            timeToCollisionWarningSeconds = (
+                                                settings.warning.timeToCollisionWarningSeconds - 5
+                                            ).coerceAtLeast(5)
+                                        )
+                                    )
+                                }
+                            }
+                        ) {
+                            Text("-")
+                        }
+                        Text("${settings.warning.timeToCollisionWarningSeconds} s")
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    repository.updateWarningPreferences(
+                                        WarningPreferences(
+                                            timeToCollisionWarningSeconds = (
+                                                settings.warning.timeToCollisionWarningSeconds + 5
+                                            ).coerceAtMost(600)
+                                        )
+                                    )
+                                }
+                            }
+                        ) {
+                            Text("+")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingValueRow(
+    label: String,
+    value: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label)
+        TextButton(onClick = onClick) {
+            Text(value)
+        }
+    }
+}
+
+private fun DistanceUnit.label(): String = when (this) {
+    DistanceUnit.NauticalMiles -> "Nautical miles"
+    DistanceUnit.Kilometers -> "Kilometers"
+    DistanceUnit.Miles -> "Miles"
+}
+
+private fun DistanceUnit.next(): DistanceUnit = when (this) {
+    DistanceUnit.NauticalMiles -> DistanceUnit.Kilometers
+    DistanceUnit.Kilometers -> DistanceUnit.Miles
+    DistanceUnit.Miles -> DistanceUnit.NauticalMiles
+}
+
+private fun AltitudeUnit.label(): String = when (this) {
+    AltitudeUnit.Feet -> "Feet"
+    AltitudeUnit.Meters -> "Meters"
+}
+
+private fun AltitudeUnit.next(): AltitudeUnit = when (this) {
+    AltitudeUnit.Feet -> AltitudeUnit.Meters
+    AltitudeUnit.Meters -> AltitudeUnit.Feet
+}
+
+private fun SpeedUnit.label(): String = when (this) {
+    SpeedUnit.Knots -> "Knots"
+    SpeedUnit.KilometersPerHour -> "Kilometers per hour"
+    SpeedUnit.MilesPerHour -> "Miles per hour"
+    SpeedUnit.MetersPerSecond -> "Meters per second"
+}
+
+private fun SpeedUnit.next(): SpeedUnit = when (this) {
+    SpeedUnit.Knots -> SpeedUnit.KilometersPerHour
+    SpeedUnit.KilometersPerHour -> SpeedUnit.MilesPerHour
+    SpeedUnit.MilesPerHour -> SpeedUnit.MetersPerSecond
+    SpeedUnit.MetersPerSecond -> SpeedUnit.Knots
 }
 
 private fun Airspace.toMapFocus(): SearchDockMapFocus {

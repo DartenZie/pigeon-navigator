@@ -14,14 +14,18 @@ struct HUDSearchRoutePlannerPage: View {
             } else {
                 routeRow(label: "A", title: "Current Location")
                 ForEach(Array(dock.routeDestinations.enumerated()), id: \.element.id) { index, point in
-                    routeRow(label: routeLabel(index + 1), title: point.title)
+                    routeRow(
+                        label: routeLabel(index + 1),
+                        title: point.title,
+                        onRemove: { dock.removeRouteDestination(id: point.id) }
+                    )
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func routeRow(label: String, title: String) -> some View {
+    private func routeRow(label: String, title: String, onRemove: (() -> Void)? = nil) -> some View {
         HStack(spacing: 10) {
             Text(label)
                 .font(.system(size: 12, weight: .bold))
@@ -31,6 +35,16 @@ struct HUDSearchRoutePlannerPage: View {
             Text(title)
                 .font(.system(size: 13, weight: .medium))
             Spacer(minLength: 0)
+            if let onRemove {
+                Button(action: onRemove) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.red)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove route point")
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)

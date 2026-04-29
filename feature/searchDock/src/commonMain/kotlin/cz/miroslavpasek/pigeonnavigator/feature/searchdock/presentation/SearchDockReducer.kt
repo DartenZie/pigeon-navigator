@@ -33,6 +33,9 @@ class SearchDockReducer(
                 selectedRouteOverride = SearchDockRoute.RoutePlanner,
                 routeDestinations = state.routeDestinations + intent.point
             )
+            is SearchDockIntent.RouteDestinationRemoved -> state.copy(
+                routeDestinations = state.routeDestinations.filterNot { it.id == intent.id }
+            )
             is SearchDockIntent.SearchQueryChanged -> {
                 val trimmedQuery = intent.query.trim()
                 state.copy(

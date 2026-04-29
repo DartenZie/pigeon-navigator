@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var isAwayFromUserLocation = false
     @State private var locationStatus: GpsStatus? = nil
     @State private var hudSize: HUDSize = .bar
+    @State private var isSettingsPresented = false
     @StateObject private var mapTapLookup = MapTapLookupViewModelWrapper()
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
     @StateObject private var dock = SearchDockViewModelWrapper()
@@ -228,7 +229,7 @@ struct ContentView: View {
                             Spacer(minLength: 0)
                         }
 
-                        Button(action: {}) {
+                        Button(action: { isSettingsPresented = true }) {
                             Image(systemName: "gearshape.fill")
                                 .font(.system(size: 20, weight: .semibold))
                                 .foregroundStyle(.primary)
@@ -248,6 +249,9 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .zIndex(4)
             }
+        }
+        .fullScreenCover(isPresented: $isSettingsPresented) {
+            SettingsView(settings: appSettings)
         }
     }
 

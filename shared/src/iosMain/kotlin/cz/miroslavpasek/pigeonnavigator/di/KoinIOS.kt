@@ -507,6 +507,11 @@ class SearchDockHandle(
         )
     }
 
+    /** Removes a destination from the shared route planner. */
+    fun removeRouteDestination(id: String) {
+        store.send(SearchDockIntent.RouteDestinationRemoved(id = id))
+    }
+
     /** Stops active jobs and closes the underlying store. */
     fun close() {
         stopState()

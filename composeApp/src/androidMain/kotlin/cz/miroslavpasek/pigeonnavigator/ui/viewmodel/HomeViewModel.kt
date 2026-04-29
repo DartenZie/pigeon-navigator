@@ -93,6 +93,10 @@ class HomeViewModel(
         searchDockStore.send(SearchDockIntent.RouteDestinationAdded(point = point))
     }
 
+    fun onRouteDestinationRemoved(id: String) {
+        searchDockStore.send(SearchDockIntent.RouteDestinationRemoved(id = id))
+    }
+
     fun onMapTapDetailRequested(key: String) {
         searchDockStore.send(SearchDockIntent.OpenMapTapDetail(key = key))
     }

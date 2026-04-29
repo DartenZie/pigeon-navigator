@@ -133,6 +133,10 @@ final class SearchDockViewModelWrapper: ObservableObject {
         handle.addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
     }
 
+    func removeRouteDestination(id: String) {
+        handle.removeRouteDestination(id: id)
+    }
+
     /// Opens the map-tap detail panel for the given key (e.g. "airport:LKAA").
     func openMapTapDetail(_ key: String) {
         handle.openMapTapDetail(key: key)

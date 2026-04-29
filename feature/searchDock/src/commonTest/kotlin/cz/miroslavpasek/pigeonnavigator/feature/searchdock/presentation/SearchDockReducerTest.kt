@@ -42,6 +42,33 @@ class SearchDockReducerTest {
     }
 
     @Test
+    fun removingRouteDestinationDeletesOnlyMatchingPoint() {
+        val first = SearchDockRoutePoint(
+            id = "airport:LKPR",
+            title = "LKPR",
+            latitude = 50.1008,
+            longitude = 14.26
+        )
+        val second = SearchDockRoutePoint(
+            id = "navaid:PRG",
+            title = "PRG",
+            latitude = 50.0,
+            longitude = 14.0
+        )
+        val state = SearchDockState(
+            isExpanded = true,
+            isRoutePlanning = true,
+            selectedRouteOverride = SearchDockRoute.RoutePlanner,
+            routeDestinations = listOf(first, second)
+        )
+
+        val next = reducer.reduce(state, SearchDockIntent.RouteDestinationRemoved(first.id))
+
+        assertEquals(listOf(second), next.routeDestinations)
+        assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
+    }
+
+    @Test
     fun mapTapRouteAlwaysAvailable() {
         val next = reducer.reduce(SearchDockState(), SearchDockIntent.MapSelectionChanged(hasSelection = true))
 

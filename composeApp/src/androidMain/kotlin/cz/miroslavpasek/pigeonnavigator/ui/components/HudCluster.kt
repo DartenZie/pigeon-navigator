@@ -66,6 +66,7 @@ fun HudCluster(
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
     onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
+    onRouteDestinationRemoved: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val normalizedDirection = normalizeDirection(mapDirection)
@@ -144,6 +145,7 @@ fun HudCluster(
             onMapTapDetailRequested = onMapTapDetailRequested,
             onMapTapDetailClosed = onMapTapDetailClosed,
             onAddToRouteClicked = onAddToRouteClicked,
+            onRouteDestinationRemoved = onRouteDestinationRemoved,
             onFullExpandedChange = onSearchDockFullExpandedChanged,
             modifier = Modifier
                 .fillMaxWidth()
