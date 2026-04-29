@@ -31,6 +31,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.section.SearchDock
 import kotlin.math.min
 
 val BubbleSize = 64.dp
