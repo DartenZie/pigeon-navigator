@@ -86,7 +86,7 @@ struct NavigateView: UIViewRepresentable {
     }
     
     func makeUIView(context: Context) -> MLNMapView {
-        let styleURL = resolveStyleURL()
+        let styleURL = MapStyleNormalizer.resolveStyleURL()
             ?? Bundle.main.url(forResource: "style", withExtension: "json", subdirectory: "MapAssets")
 
         let mapView = MLNMapView(frame: .zero)
@@ -115,84 +115,6 @@ struct NavigateView: UIViewRepresentable {
         return mapView
     }
 
-    private func resolveStyleURL() -> URL? {
-        let styleBridge = MapStyleBridge()
-        guard let rawStyleJson = styleBridge.resolveStyleJson() else {
-            return nil
-        }
-        let styleJson = normalizeStyleForIOS(styleJson: rawStyleJson)
-
-        guard let appSupportDirectory = FileManager.default.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first else {
-            return nil
-        }
-
-        let outputDir = appSupportDirectory.appendingPathComponent("map-style", isDirectory: true)
-        let outputFile = outputDir.appendingPathComponent("style.generated.json")
-
-        do {
-            try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
-            try styleJson.write(to: outputFile, atomically: true, encoding: .utf8)
-            return outputFile
-        } catch {
-            print("Failed to write generated map style: \(error)")
-            return nil
-        }
-    }
-
-    private func normalizeStyleForIOS(styleJson: String) -> String {
-        guard let data = styleJson.data(using: .utf8) else {
-            return styleJson
-        }
-
-        do {
-            guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let layers = root["layers"] as? [[String: Any]] else {
-                return styleJson
-            }
-
-            if let resourcePath = Bundle.main.resourcePath {
-                let glyphPath = "\(resourcePath)/MapAssets/fonts/{fontstack}/{range}.pbf"
-                root["glyphs"] = "file://\(glyphPath)"
-                let spritePath = "\(resourcePath)/MapAssets/sprites/sprite"
-                root["sprite"] = "file://\(spritePath)"
-            }
-
-            var normalizedLayers = [[String: Any]]()
-            normalizedLayers.reserveCapacity(layers.count)
-
-            for var layer in layers {
-                guard layer["type"] as? String == "symbol" else {
-                    normalizedLayers.append(layer)
-                    continue
-                }
-
-                if let sourceLayer = layer["source-layer"] as? String,
-                   sourceLayer == "place_label_city" || sourceLayer == "place_label_other" {
-                    layer["source-layer"] = "place"
-                }
-
-                var layout = (layer["layout"] as? [String: Any]) ?? [:]
-                if layout["text-font"] == nil {
-                    layout["text-font"] = ["Poppins-Regular"]
-                }
-                layer["layout"] = layout
-
-                normalizedLayers.append(layer)
-            }
-
-            root["layers"] = normalizedLayers
-
-            let normalizedData = try JSONSerialization.data(withJSONObject: root)
-            return String(data: normalizedData, encoding: .utf8) ?? styleJson
-        } catch {
-            print("Failed to normalize map style for iOS: \(error)")
-            return styleJson
-        }
-    }
-    
     func updateUIView(_ mapView: MLNMapView, context: Context) {
         mapView.attributionButton.isHidden = true
         mapView.logoView.isHidden = true
@@ -506,25 +428,21 @@ struct NavigateView: UIViewRepresentable {
         }
 
         private func normalizeDirection(_ direction: CLLocationDirection) -> CLLocationDirection {
-            let normalized = direction.truncatingRemainder(dividingBy: 360)
-            return normalized >= 0 ? normalized : normalized + 360
+            MapGeometry.normalizeBearingDegrees(direction)
         }
 
         private func shortestDirectionDelta(
             from startDirection: CLLocationDirection,
             to endDirection: CLLocationDirection
         ) -> CLLocationDirection {
-            let delta = normalizeDirection(endDirection) - normalizeDirection(startDirection)
-            if delta > 180 { return delta - 360 }
-            if delta < -180 { return delta + 360 }
-            return delta
+            MapGeometry.shortestDirectionDelta(from: startDirection, to: endDirection)
         }
 
         func angularDistanceDegrees(
             from startDirection: CLLocationDirection,
             to endDirection: CLLocationDirection
         ) -> CLLocationDirection {
-            abs(shortestDirectionDelta(from: startDirection, to: endDirection))
+            abs(MapGeometry.shortestDirectionDelta(from: startDirection, to: endDirection))
         }
 
         func resolveTrackingDirection(
@@ -705,42 +623,11 @@ struct NavigateView: UIViewRepresentable {
             radiusMeters: Double,
             segments: Int = 64
         ) -> MLNPolygonFeature {
-            let earthRadiusMeters = 6_371_000.0
-            let angularDistance = radiusMeters / earthRadiusMeters
-            let lat1 = center.latitude * .pi / 180
-            let lon1 = center.longitude * .pi / 180
-
-            var ring = [CLLocationCoordinate2D]()
-            ring.reserveCapacity(segments + 1)
-
-            for step in 0...segments {
-                let bearing = 2 * Double.pi * Double(step) / Double(segments)
-                let sinLat1 = sin(lat1)
-                let cosLat1 = cos(lat1)
-                let sinAd = sin(angularDistance)
-                let cosAd = cos(angularDistance)
-
-                let lat2 = asin(sinLat1 * cosAd + cosLat1 * sinAd * cos(bearing))
-                let lon2 = lon1 + atan2(
-                    sin(bearing) * sinAd * cosLat1,
-                    cosAd - sinLat1 * sin(lat2)
-                )
-
-                ring.append(
-                    CLLocationCoordinate2D(
-                        latitude: lat2 * 180 / .pi,
-                        longitude: lon2 * 180 / .pi
-                    )
-                )
-            }
-
-            return ring.withUnsafeMutableBufferPointer { buffer in
-                MLNPolygonFeature(
-                    coordinates: buffer.baseAddress!,
-                    count: UInt(buffer.count),
-                    interiorPolygons: nil
-                )
-            }
+            MapGeometry.buildAccuracyPolygon(
+                center: center,
+                radiusMeters: radiusMeters,
+                segments: segments
+            )
         }
 
         func renderGuidanceOverlay(
@@ -886,39 +773,15 @@ struct NavigateView: UIViewRepresentable {
             bearingDegrees: Double,
             distanceMeters: Double
         ) -> CLLocationCoordinate2D {
-            let earthRadiusMeters = 6_371_000.0
-            let angularDistance = distanceMeters / earthRadiusMeters
-            let bearingRadians = bearingDegrees * .pi / 180
-            let lat1 = start.latitude * .pi / 180
-            let lon1 = start.longitude * .pi / 180
-
-            let sinLat1 = sin(lat1)
-            let cosLat1 = cos(lat1)
-            let sinAd = sin(angularDistance)
-            let cosAd = cos(angularDistance)
-
-            let lat2 = asin(sinLat1 * cosAd + cosLat1 * sinAd * cos(bearingRadians))
-            let lon2 = lon1 + atan2(
-                sin(bearingRadians) * sinAd * cosLat1,
-                cosAd - sinLat1 * sin(lat2)
-            )
-
-            return CLLocationCoordinate2D(
-                latitude: lat2 * 180 / .pi,
-                longitude: normalizeLongitudeDegrees(lon2 * 180 / .pi)
+            MapGeometry.destinationCoordinate(
+                from: start,
+                bearingDegrees: bearingDegrees,
+                distanceMeters: distanceMeters
             )
         }
 
         private func normalizeBearingDegrees(_ bearing: Double) -> Double {
-            let normalized = bearing.truncatingRemainder(dividingBy: 360)
-            return normalized >= 0 ? normalized : normalized + 360
-        }
-
-        private func normalizeLongitudeDegrees(_ longitude: Double) -> Double {
-            var normalized = longitude
-            while normalized > 180 { normalized -= 360 }
-            while normalized < -180 { normalized += 360 }
-            return normalized
+            MapGeometry.normalizeBearingDegrees(bearing)
         }
     }
 }
