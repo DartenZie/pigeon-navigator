@@ -1,4 +1,4 @@
-package cz.miroslavpasek.pigeonnavigator.ui.components
+package cz.miroslavpasek.pigeonnavigator.ui.common.component
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
@@ -15,32 +15,40 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import cz.miroslavpasek.pigeonnavigator.ui.common.theme.AppDimensions
 
+/**
+ * Round HUD bubble showing a numeric value (e.g. altitude, speed) with its unit.
+ */
 @Composable
-fun IndicatorBubble(value: Int, unit: String) {
+fun IndicatorBubble(
+    value: Int,
+    unit: String,
+    modifier: Modifier = Modifier,
+) {
     val colors = MaterialTheme.colorScheme
     Surface(
-        modifier = Modifier.size(BubbleSize),
+        modifier = modifier.size(AppDimensions.BubbleSize),
         shape = CircleShape,
         color = colors.surfaceColorAtElevation(8.dp),
         tonalElevation = 8.dp,
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.45f))
+        border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.45f)),
     ) {
         Column(
             modifier = Modifier.padding(vertical = 10.dp),
             verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
                 text = value.toString(),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = unit,
                 style = MaterialTheme.typography.labelSmall,
-                color = colors.onSurfaceVariant
+                color = colors.onSurfaceVariant,
             )
         }
     }

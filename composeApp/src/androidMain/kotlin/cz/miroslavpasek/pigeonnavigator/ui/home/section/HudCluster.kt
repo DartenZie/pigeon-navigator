@@ -1,4 +1,4 @@
-package cz.miroslavpasek.pigeonnavigator.ui.components
+package cz.miroslavpasek.pigeonnavigator.ui.home.section
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
@@ -31,14 +31,23 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchResult
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
+import cz.miroslavpasek.pigeonnavigator.ui.common.component.CircularActionButton
+import cz.miroslavpasek.pigeonnavigator.ui.common.component.IndicatorBubble
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.section.SearchDock
 import kotlin.math.min
 
-val BubbleSize = 64.dp
 private val BubbleGap = 8.dp
 private val ControlFadeMotion = spring<Float>(dampingRatio = 0.9f, stiffness = 420f)
 private val ControlSlideMotion = spring<IntOffset>(dampingRatio = 0.9f, stiffness = 420f)
 
+/**
+ * Bottom-of-screen HUD that combines the altitude/speed bubbles, the
+ * compass/recenter controls, and the search dock.
+ *
+ * Visibility of the recenter and compass buttons is driven by
+ * [isRecenterVisible] and the heading itself; both auto-hide when the search
+ * dock is fully expanded so the dock can take over the bottom area.
+ */
 @Composable
 fun HudCluster(
     speed: Int,
@@ -68,7 +77,7 @@ fun HudCluster(
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
     onAddToRouteClicked: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val normalizedDirection = normalizeDirection(mapDirection)
     val distanceToNorth = min(normalizedDirection, 360.0 - normalizedDirection)
@@ -76,7 +85,7 @@ fun HudCluster(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         AnimatedVisibility(visible = !isSearchDockFullExpanded) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
@@ -93,16 +102,16 @@ fun HudCluster(
                         enter = fadeIn(animationSpec = ControlFadeMotion) +
                             slideInHorizontally(animationSpec = ControlSlideMotion) { it / 3 },
                         exit = fadeOut(animationSpec = ControlFadeMotion) +
-                            slideOutHorizontally(animationSpec = ControlSlideMotion) { it / 3 }
+                            slideOutHorizontally(animationSpec = ControlSlideMotion) { it / 3 },
                     ) {
                         CircularActionButton(
                             onClick = onRecenterTap,
                             icon = {
                                 Icon(
                                     imageVector = Icons.Filled.MyLocation,
-                                    contentDescription = "Recenter map"
+                                    contentDescription = "Recenter map",
                                 )
-                            }
+                            },
                         )
                     }
 
@@ -111,7 +120,7 @@ fun HudCluster(
                         enter = fadeIn(animationSpec = ControlFadeMotion) +
                             slideInHorizontally(animationSpec = ControlSlideMotion) { it / 3 },
                         exit = fadeOut(animationSpec = ControlFadeMotion) +
-                            slideOutHorizontally(animationSpec = ControlSlideMotion) { it / 3 }
+                            slideOutHorizontally(animationSpec = ControlSlideMotion) { it / 3 },
                     ) {
                         CircularActionButton(
                             onClick = onCompassTap,
@@ -119,9 +128,9 @@ fun HudCluster(
                                 Icon(
                                     imageVector = Icons.Filled.Explore,
                                     contentDescription = "Reset north",
-                                    modifier = Modifier.rotate((-normalizedDirection - 45.0).toFloat())
+                                    modifier = Modifier.rotate((-normalizedDirection - 45.0).toFloat()),
                                 )
-                            }
+                            },
                         )
                     }
                 }
@@ -149,7 +158,7 @@ fun HudCluster(
             onFullExpandedChange = onSearchDockFullExpandedChanged,
             modifier = Modifier
                 .fillMaxWidth()
-                .then(if (isSearchDockFullExpanded) Modifier else Modifier.padding(horizontal = 12.dp))
+                .then(if (isSearchDockFullExpanded) Modifier else Modifier.padding(horizontal = 12.dp)),
         )
     }
 }

@@ -29,10 +29,10 @@ import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDo
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
-import cz.miroslavpasek.pigeonnavigator.ui.components.BubbleSize
-import cz.miroslavpasek.pigeonnavigator.ui.components.CircularActionButton
-import cz.miroslavpasek.pigeonnavigator.ui.components.HudCluster
+import cz.miroslavpasek.pigeonnavigator.ui.common.component.CircularActionButton
+import cz.miroslavpasek.pigeonnavigator.ui.common.theme.AppDimensions
 import cz.miroslavpasek.pigeonnavigator.ui.home.section.GpsStatusBadge
+import cz.miroslavpasek.pigeonnavigator.ui.home.section.HudCluster
 import cz.miroslavpasek.pigeonnavigator.ui.map.screen.NavigateScreen
 import cz.miroslavpasek.pigeonnavigator.ui.settings.screen.SettingsScreen
 
@@ -91,7 +91,7 @@ fun HomeContent(
     MaterialTheme {
         BoxWithConstraints(modifier = modifier.fillMaxSize()) {
             val settingsBottomPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() +
-                12.dp + BubbleSize + 12.dp
+                12.dp + AppDimensions.BubbleSize + 12.dp
             val maxSearchPanelHeight = if (isSearchDockFullExpanded) {
                 (maxHeight - settingsBottomPadding).coerceAtLeast(maxHeight * 0.72f)
             } else {
