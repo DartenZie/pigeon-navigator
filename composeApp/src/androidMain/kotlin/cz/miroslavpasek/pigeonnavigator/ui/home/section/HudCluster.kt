@@ -91,6 +91,7 @@ fun HudCluster(
 
     Column(
         modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         AnimatedVisibility(visible = !isSearchDockFullExpanded) {
@@ -167,9 +168,11 @@ fun HudCluster(
             onAddToRouteClicked = onAddToRouteClicked,
             onRouteDestinationRemoved = onRouteDestinationRemoved,
             onFullExpandedChange = onSearchDockFullExpandedChanged,
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(if (isSearchDockFullExpanded) Modifier else Modifier.padding(horizontal = 12.dp)),
+            modifier = if (isSearchDockFullExpanded) {
+                Modifier.fillMaxWidth()
+            } else {
+                Modifier.padding(horizontal = 12.dp)
+            },
         )
     }
 }

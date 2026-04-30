@@ -2,16 +2,27 @@ package cz.miroslavpasek.pigeonnavigator.ui.searchdock.section
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.CellTower
+import androidx.compose.material.icons.filled.FlightTakeoff
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,9 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
@@ -37,6 +50,8 @@ import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDo
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.AirportRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.AirspaceRow
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.DetailHeader
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.DetailRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.EmptyLine
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.MapTapDetailPanel
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.NavaidRow
@@ -48,6 +63,7 @@ import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.SearchResultRow
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.component.SectionTitle
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.MapTapRecord
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.findMapTapRecord
+import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.formatCoordinateLabel
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.routeLabelForIndex
 import cz.miroslavpasek.pigeonnavigator.ui.searchdock.internal.toRoutePoint
 
@@ -99,6 +115,18 @@ internal fun SearchDockExpandedContent(
         }
     }
 
+    if (state.activeRoute == SearchDockRoute.NavigationDetail) {
+        NavigationDetailContent(
+            state = state,
+            onWaypointDetailRequested = onNavigationWaypointDetailRequested,
+            onNavigationDetailClosed = onNavigationDetailRequested,
+            onAddWaypointRequested = onAddWaypointRequested,
+            onEndFlightRequested = onEndFlightRequested,
+            modifier = modifier,
+        )
+        return
+    }
+
     Column(modifier = modifier) {
         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
 
@@ -121,6 +149,7 @@ internal fun SearchDockExpandedContent(
                                 onAddToRouteClicked = {
                                     onAddToRouteClicked(selectedNearbyPoi.toRoutePoint())
                                 },
+                                showAddToRouteAction = !state.isRouteDestination(selectedNearbyPoi.id),
                             )
                         }
                     } else {
@@ -161,6 +190,7 @@ internal fun SearchDockExpandedContent(
                                 onAddToRouteClicked = {
                                     onAddToRouteClicked(selectedSearchResult.toRoutePoint())
                                 },
+                                showAddToRouteAction = !state.isRouteDestination(selectedSearchResult.id),
                             )
                         }
                     } else {
@@ -230,6 +260,7 @@ internal fun SearchDockExpandedContent(
                                 onAddToRouteClicked = {
                                     onAddToRouteClicked(detailRecord.toRoutePoint())
                                 },
+                                showAddToRouteAction = !state.isRouteDestination(detailRecord.toRoutePoint().id),
                             )
                         }
                     } else {
@@ -293,55 +324,7 @@ internal fun SearchDockExpandedContent(
                         }
                     }
                 }
-
-                SearchDockRoute.NavigationDetail -> {
-                    item {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            val detail = state.selectedNavigationWaypoint
-                            if (detail != null) {
-                                SectionTitle(text = "Next waypoint")
-                                Text(
-                                    text = detail.navigationLabel,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                )
-                                Text(
-                                    text = "${detail.latitude}, ${detail.longitude}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                )
-                            } else {
-                                state.nextWaypoint?.let { waypoint ->
-                                    Button(
-                                        onClick = { onNavigationWaypointDetailRequested(waypoint.id) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Text("Next waypoint ${waypoint.navigationLabel}")
-                                    }
-                                }
-                            }
-                            Button(
-                                onClick = onAddWaypointRequested,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Text("Add waypoint")
-                            }
-                            Button(
-                                onClick = onEndFlightRequested,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = colors.error),
-                            ) {
-                                Text("End flight")
-                            }
-                        }
-                    }
-                }
+                SearchDockRoute.NavigationDetail -> Unit
             }
 
             item {
@@ -349,4 +332,158 @@ internal fun SearchDockExpandedContent(
             }
         }
     }
+}
+
+@Composable
+private fun NavigationDetailContent(
+    state: SearchDockState,
+    onWaypointDetailRequested: (id: String) -> Unit,
+    onNavigationDetailClosed: () -> Unit,
+    onAddWaypointRequested: () -> Unit,
+    onEndFlightRequested: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(modifier = modifier.fillMaxHeight()) {
+        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(top = 14.dp),
+        ) {
+            val waypoint = state.selectedNavigationWaypoint
+            if (waypoint != null) {
+                NavigationWaypointDetail(
+                    waypoint = waypoint,
+                    onBack = onNavigationDetailClosed,
+                )
+            } else {
+                Spacer(modifier = Modifier.weight(1f))
+                state.nextWaypoint?.let { nextWaypoint ->
+                    NavigationActionButton(
+                        text = nextWaypoint.navigationDisplayLabel(),
+                        kind = nextWaypoint.waypointKind(),
+                        onClick = { onWaypointDetailRequested(nextWaypoint.id) },
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                NavigationActionButton(
+                    text = "Add waypoint",
+                    kind = WaypointKind.Add,
+                    onClick = onAddWaypointRequested,
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onEndFlightRequested,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.error),
+                ) {
+                    Text("End flight")
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(18.dp))
+    }
+}
+
+@Composable
+private fun NavigationWaypointDetail(
+    waypoint: SearchDockRoutePoint,
+    onBack: () -> Unit,
+) {
+    val kind = waypoint.waypointKind()
+    DetailHeader(title = waypoint.navigationDisplayLabel(), onBack = onBack)
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        DetailRow(label = "Kind", value = kind.label)
+        DetailRow(label = "Name", value = waypoint.title)
+        DetailRow(label = "Position", value = formatCoordinateLabel(waypoint.latitude, waypoint.longitude))
+    }
+}
+
+@Composable
+private fun NavigationActionButton(
+    text: String,
+    kind: WaypointKind,
+    onClick: () -> Unit,
+) {
+    ElevatedButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp),
+        colors = ButtonDefaults.elevatedButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = kind.icon,
+                contentDescription = null,
+                tint = kind.tint(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.size(22.dp),
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+private enum class WaypointKind(val label: String) {
+    Airport("Airport"),
+    Airspace("Airspace"),
+    Navaid("Navaid"),
+    LonLat("Lon/lat"),
+    Add("Add"),
+}
+
+private val WaypointKind.icon
+    get() = when (this) {
+        WaypointKind.Airport -> Icons.Filled.FlightTakeoff
+        WaypointKind.Airspace -> Icons.Filled.Security
+        WaypointKind.Navaid -> Icons.Filled.CellTower
+        WaypointKind.LonLat -> Icons.Filled.LocationOn
+        WaypointKind.Add -> Icons.Filled.AddCircle
+    }
+
+private fun WaypointKind.tint(primary: Color): Color = when (this) {
+    WaypointKind.Airport -> Color(0xFF2E7D32)
+    WaypointKind.Airspace -> Color(0xFFC62828)
+    WaypointKind.Navaid -> primary
+    WaypointKind.LonLat -> Color(0xFFF9A825)
+    WaypointKind.Add -> primary
+}
+
+private fun SearchDockRoutePoint.waypointKind(): WaypointKind = when {
+    id.startsWith("airport:") -> WaypointKind.Airport
+    id.startsWith("airspace:") -> WaypointKind.Airspace
+    id.startsWith("navaid:") -> WaypointKind.Navaid
+    else -> WaypointKind.LonLat
+}
+
+private fun SearchDockRoutePoint.navigationDisplayLabel(): String {
+    val code = id.substringAfterLast(':', title)
+    return "$title ($code)"
+}
+
+private fun SearchDockState.isRouteDestination(id: String): Boolean {
+    return routeDestinations.any { it.id == id }
 }

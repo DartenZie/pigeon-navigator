@@ -50,6 +50,7 @@ internal fun NearbyPoiDetailPanel(
     onBack: () -> Unit,
     onLocateClicked: () -> Unit,
     onAddToRouteClicked: () -> Unit,
+    showAddToRouteAction: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     DetailPanelScaffold(
@@ -64,6 +65,7 @@ internal fun NearbyPoiDetailPanel(
         },
         onLocateClicked = onLocateClicked,
         onAddToRouteClicked = onAddToRouteClicked,
+        showAddToRouteAction = showAddToRouteAction,
         modifier = modifier,
     )
 }
@@ -74,6 +76,7 @@ internal fun SearchResultDetailPanel(
     onBack: () -> Unit,
     onLocateClicked: () -> Unit,
     onAddToRouteClicked: () -> Unit,
+    showAddToRouteAction: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     DetailPanelScaffold(
@@ -82,6 +85,7 @@ internal fun SearchResultDetailPanel(
         rows = searchResultRows(result),
         onLocateClicked = onLocateClicked,
         onAddToRouteClicked = onAddToRouteClicked,
+        showAddToRouteAction = showAddToRouteAction,
         modifier = modifier,
     )
 }
@@ -92,6 +96,7 @@ internal fun MapTapDetailPanel(
     onBack: () -> Unit,
     onLocateClicked: () -> Unit,
     onAddToRouteClicked: () -> Unit,
+    showAddToRouteAction: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     DetailPanelScaffold(
@@ -100,6 +105,7 @@ internal fun MapTapDetailPanel(
         rows = mapTapRecordRows(record),
         onLocateClicked = onLocateClicked,
         onAddToRouteClicked = onAddToRouteClicked,
+        showAddToRouteAction = showAddToRouteAction,
         modifier = modifier,
     )
 }
@@ -128,6 +134,7 @@ private fun DetailPanelScaffold(
     rows: List<Pair<String, String>>,
     onLocateClicked: () -> Unit,
     onAddToRouteClicked: () -> Unit,
+    showAddToRouteAction: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
@@ -147,12 +154,13 @@ private fun DetailPanelScaffold(
         DetailActions(
             onLocateClicked = onLocateClicked,
             onAddToRouteClicked = onAddToRouteClicked,
+            showAddToRouteAction = showAddToRouteAction,
         )
     }
 }
 
 @Composable
-private fun DetailHeader(title: String, onBack: () -> Unit) {
+internal fun DetailHeader(title: String, onBack: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -177,7 +185,7 @@ private fun DetailHeader(title: String, onBack: () -> Unit) {
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+internal fun DetailRow(label: String, value: String) {
     val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
@@ -204,6 +212,7 @@ private fun DetailRow(label: String, value: String) {
 private fun DetailActions(
     onLocateClicked: () -> Unit,
     onAddToRouteClicked: () -> Unit,
+    showAddToRouteAction: Boolean,
 ) {
     Column(
         modifier = Modifier
@@ -222,17 +231,19 @@ private fun DetailActions(
                 )
             },
         )
-        DetailActionButton(
-            text = "Add to Route",
-            onClick = onAddToRouteClicked,
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-            },
-        )
+        if (showAddToRouteAction) {
+            DetailActionButton(
+                text = "Add to Route",
+                onClick = onAddToRouteClicked,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                },
+            )
+        }
     }
 }
 

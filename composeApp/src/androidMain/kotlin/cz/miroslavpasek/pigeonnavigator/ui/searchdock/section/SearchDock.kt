@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,6 +48,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.NearbyAirport
@@ -69,6 +71,7 @@ import org.koin.core.context.GlobalContext
 private enum class AndroidSearchDockSize { Bar, Half, Full }
 
 private val SearchDockBarHeight = 64.dp
+private val SearchDockNavigationBarHeight = 72.dp
 private val SearchDockHalfHeight = 320.dp
 private const val SearchDockFlingVelocityThreshold = 1600f
 
@@ -164,9 +167,14 @@ fun SearchDock(
     }
 
     val fullHeight = maxPanelHeight.coerceAtLeast(260.dp)
-    val halfHeight = SearchDockHalfHeight.coerceAtMost(fullHeight).coerceAtLeast(SearchDockBarHeight)
+    val collapsedBarHeight = if (state.headerMode == SearchDockHeaderMode.Navigation) {
+        SearchDockNavigationBarHeight
+    } else {
+        SearchDockBarHeight
+    }
+    val halfHeight = SearchDockHalfHeight.coerceAtMost(fullHeight).coerceAtLeast(collapsedBarHeight)
     val targetHeight = when (dockSize) {
-        AndroidSearchDockSize.Bar -> SearchDockBarHeight
+        AndroidSearchDockSize.Bar -> collapsedBarHeight
         AndroidSearchDockSize.Half -> halfHeight
         AndroidSearchDockSize.Full -> fullHeight
     }
@@ -178,7 +186,7 @@ fun SearchDock(
     )
     val dragAdjustedPanelHeight = (
         panelHeight + with(density) { (-dragOffset * 0.25f).toDp() }
-        ).coerceIn(SearchDockBarHeight, fullHeight)
+        ).coerceIn(collapsedBarHeight, fullHeight)
     val draggableState = rememberDraggableState { delta ->
         dragOffset += delta
     }
@@ -196,13 +204,15 @@ fun SearchDock(
 
     Surface(
         modifier = modifier
-            .heightIn(min = SearchDockBarHeight)
+            .heightIn(min = collapsedBarHeight)
             .height(dragAdjustedPanelHeight)
             .then(
                 if (dockSize == AndroidSearchDockSize.Full) {
                     Modifier.fillMaxWidth()
                 } else {
-                    Modifier.widthIn(max = 360.dp)
+                    Modifier
+                        .widthIn(max = if (state.headerMode == SearchDockHeaderMode.Navigation && dockSize == AndroidSearchDockSize.Bar) 340.dp else 360.dp)
+                        .fillMaxWidth()
                 },
             ),
         shape = shape,
@@ -259,7 +269,7 @@ fun SearchDock(
                         .fillMaxWidth()
                         .align(Alignment.Center)
                         .padding(horizontal = 14.dp, vertical = 8.dp)
-                        .height(if (state.headerMode == SearchDockHeaderMode.Navigation) 52.dp else 44.dp)
+                        .height(if (state.headerMode == SearchDockHeaderMode.Navigation) 56.dp else 44.dp)
                         .clickable {
                             if (state.headerMode == SearchDockHeaderMode.Navigation) {
                                 updateDockSize(AndroidSearchDockSize.Half)
@@ -358,7 +368,8 @@ fun SearchDock(
                     },
                     modifier = Modifier
                         .fillMaxHeight()
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 10.dp)
+                        .padding(top = if (state.activeRoute == SearchDockRoute.NavigationDetail) 14.dp else 0.dp),
                 )
             }
         }
@@ -374,10 +385,12 @@ private fun NavigationSummaryRow(
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.Center,
     ) {
         NavigationMetric(label = "arrival", value = formatArrival(summary?.remainingSeconds))
+        Spacer(modifier = Modifier.width(34.dp))
         NavigationMetric(label = "min", value = formatMinutes(summary?.remainingSeconds))
+        Spacer(modifier = Modifier.width(34.dp))
         NavigationMetric(label = distanceUnit(summary?.remainingDistanceMeters), value = formatDistanceValue(summary?.remainingDistanceMeters))
     }
 }
@@ -385,8 +398,15 @@ private fun NavigationSummaryRow(
 @Composable
 private fun NavigationMetric(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(text = value, style = MaterialTheme.typography.titleSmall)
-        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
