@@ -4,6 +4,7 @@ import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 
 private const val MSFS_PACKET_PREFIX = "XGPSMSFS"
 private const val MSFS_PACKET_FIELDS = 6
+private const val MSFS_PACKET_FIELDS_WITH_COMMA_DECIMAL_LONGITUDE = 7
 
 /**
  * Parses UDP packets produced by msfs-2020-gps-link.
@@ -17,11 +18,27 @@ fun parseMsfsUdpLocationPacket(payload: String): FlightLocation? {
         return null
     }
 
-    val longitude = fields[1].toDoubleOrNull() ?: return null
-    val latitude = fields[2].toDoubleOrNull() ?: return null
-    val altitudeMeters = fields[3].toDoubleOrNull() ?: return null
-    val bearingDegrees = fields[4].toFloatOrNull() ?: return null
-    val speedMetersPerSecond = fields[5].toFloatOrNull() ?: return null
+    val values = if (fields.size == MSFS_PACKET_FIELDS_WITH_COMMA_DECIMAL_LONGITUDE) {
+        listOf(
+            fields[1] + "." + fields[2],
+            fields[3],
+            fields[4],
+            fields[5],
+            fields[6],
+        )
+    } else {
+        fields.drop(1)
+    }
+
+    val longitude = values[0].toDoubleOrNull() ?: return null
+    val latitude = values[1].toDoubleOrNull() ?: return null
+    val altitudeMeters = values[2].toDoubleOrNull() ?: return null
+    val bearingDegrees = values[3].toFloatOrNull() ?: return null
+    val speedMetersPerSecond = values[4].toFloatOrNull() ?: return null
+
+    if (latitude !in -90.0..90.0 || longitude !in -180.0..180.0) {
+        return null
+    }
 
     return FlightLocation(
         latitude = latitude,
