@@ -63,7 +63,9 @@ struct HomeContent: View {
             : 0
 
         GeometryReader { proxy in
-            let hudSearchBarHeight = max(hudSize.height(in: proxy), 48)
+            let hudSearchBarHeight = dock.headerMode == .navigation && hudSize == .bar
+                ? 60
+                : max(hudSize.height(in: proxy), 48)
 
             ZStack(alignment: .bottom) {
                 NavigateView(

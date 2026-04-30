@@ -15,12 +15,46 @@ class SearchDockReducerTest {
     fun routePlanningWinsOverOtherRoutes() {
         val state = SearchDockState(
             hasMapSelection = true,
-            searchQuery = "prg"
+            searchQuery = ""
         )
 
         val next = reducer.reduce(state, SearchDockIntent.RoutePlanningChanged(planning = true))
 
         assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
+    }
+
+    @Test
+    fun searchWinsWhileRoutePlannerIsOpen() {
+        val state = SearchDockState(
+            isExpanded = true,
+            isRoutePlanning = true,
+            selectedRouteOverride = SearchDockRoute.RoutePlanner
+        )
+
+        val searched = reducer.reduce(state, SearchDockIntent.SearchQueryChanged("prg"))
+        val submitted = reducer.reduce(searched, SearchDockIntent.SubmitSearch)
+
+        assertEquals(SearchDockRoute.Search, submitted.activeRoute)
+        assertEquals(SearchDockRoute.Search, submitted.selectedRouteOverride)
+        assertTrue(submitted.isRoutePlanning)
+    }
+
+    @Test
+    fun collapsingRoutePlannerDuringNavigationClosesRoutePlanner() {
+        val state = SearchDockState(
+            isExpanded = true,
+            isNavigating = true,
+            isRoutePlanning = true,
+            selectedRouteOverride = SearchDockRoute.RoutePlanner,
+            routeDestinations = listOf(routePoint("airport:LKPR", "LKPR"))
+        )
+
+        val collapsed = reducer.reduce(state, SearchDockIntent.ExpandedChanged(expanded = false))
+
+        assertFalse(collapsed.isRoutePlanning)
+        assertTrue(collapsed.isNavigating)
+        assertEquals(SearchDockRoute.NavigationDetail, collapsed.activeRoute)
+        assertNull(collapsed.selectedRouteOverride)
     }
 
     @Test
@@ -35,10 +69,80 @@ class SearchDockReducerTest {
         val next = reducer.reduce(SearchDockState(), SearchDockIntent.RouteDestinationAdded(point))
 
         assertTrue(next.isExpanded)
-        assertTrue(next.isRoutePlanning)
-        assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
-        assertEquals(SearchDockRoute.RoutePlanner, next.selectedRouteOverride)
+        assertTrue(next.isNavigating)
+        assertFalse(next.isRoutePlanning)
+        assertEquals(SearchDockRoute.NavigationDetail, next.activeRoute)
+        assertEquals(SearchDockRoute.NavigationDetail, next.selectedRouteOverride)
         assertEquals(listOf(point), next.routeDestinations)
+    }
+
+    @Test
+    fun addWaypointRequestReturnsToRoutePlannerWithSearchHeader() {
+        val state = SearchDockState(
+            isNavigating = true,
+            routeDestinations = listOf(routePoint("airport:LKPR", "LKPR")),
+            selectedRouteOverride = SearchDockRoute.NavigationDetail
+        )
+
+        val next = reducer.reduce(state, SearchDockIntent.AddWaypointRequested)
+
+        assertEquals(SearchDockRoute.RoutePlanner, next.activeRoute)
+        assertEquals(SearchDockHeaderMode.Search, next.headerMode)
+        assertTrue(next.isRoutePlanning)
+    }
+
+    @Test
+    fun endFlightReturnsToDefaultState() {
+        val state = SearchDockState(
+            isExpanded = true,
+            isNavigating = true,
+            routeDestinations = listOf(routePoint("airport:LKPR", "LKPR")),
+            navigationSummary = SearchDockNavigationSummary(remainingDistanceMeters = 1000.0, remainingSeconds = 60)
+        )
+
+        val next = reducer.reduce(state, SearchDockIntent.EndFlight)
+
+        assertFalse(next.isExpanded)
+        assertFalse(next.isNavigating)
+        assertEquals(emptyList(), next.routeDestinations)
+        assertNull(next.navigationSummary)
+        assertEquals(SearchDockRoute.Nearby, next.activeRoute)
+    }
+
+    @Test
+    fun navigationHeaderShownOutsideRoutePlannerAndSearch() {
+        val state = reducer.reduce(
+            SearchDockState(),
+            SearchDockIntent.RouteDestinationAdded(routePoint("airport:LKPR", "LKPR"))
+        )
+
+        assertEquals(SearchDockHeaderMode.Navigation, state.headerMode)
+
+        val routePlanner = reducer.reduce(state, SearchDockIntent.AddWaypointRequested)
+        assertEquals(SearchDockHeaderMode.Search, routePlanner.headerMode)
+    }
+
+    @Test
+    fun openNavigationDetailShowsNavigationOverview() {
+        val point = routePoint("airport:LKPR", "LKPR")
+        val state = reducer.reduce(SearchDockState(), SearchDockIntent.RouteDestinationAdded(point))
+
+        val next = reducer.reduce(state, SearchDockIntent.OpenNavigationDetail)
+
+        assertNull(next.selectedNavigationWaypointId)
+        assertNull(next.selectedNavigationWaypoint)
+        assertEquals(SearchDockRoute.NavigationDetail, next.activeRoute)
+    }
+
+    @Test
+    fun openNavigationWaypointDetailSelectsPoint() {
+        val point = routePoint("airport:LKPR", "LKPR")
+        val state = reducer.reduce(SearchDockState(), SearchDockIntent.RouteDestinationAdded(point))
+
+        val next = reducer.reduce(state, SearchDockIntent.OpenNavigationWaypointDetail(point.id))
+
+        assertEquals(point.id, next.selectedNavigationWaypointId)
+        assertEquals(point, next.selectedNavigationWaypoint)
     }
 
     @Test
@@ -356,5 +460,14 @@ class SearchDockReducerTest {
         assertEquals(false, next.isSearching)
         assertEquals(emptyList(), next.searchResults)
         assertEquals(null, next.searchErrorMessage)
+    }
+
+    private fun routePoint(id: String, title: String): SearchDockRoutePoint {
+        return SearchDockRoutePoint(
+            id = id,
+            title = title,
+            latitude = 50.0,
+            longitude = 14.0
+        )
     }
 }

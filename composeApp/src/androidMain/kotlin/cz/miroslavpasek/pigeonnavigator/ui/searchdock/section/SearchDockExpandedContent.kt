@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -68,6 +70,10 @@ internal fun SearchDockExpandedContent(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit,
     onMapTapDetailRequested: (key: String) -> Unit,
     onMapTapDetailClosed: () -> Unit,
+    onNavigationDetailRequested: () -> Unit,
+    onNavigationWaypointDetailRequested: (id: String) -> Unit,
+    onAddWaypointRequested: () -> Unit,
+    onEndFlightRequested: () -> Unit,
     onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
     onRouteDestinationRemoved: (String) -> Unit,
     onContentScrollStarted: () -> Unit,
@@ -275,6 +281,63 @@ internal fun SearchDockExpandedContent(
                                         onMapTapDetailRequested("airspace:${airspace.id}")
                                     },
                                 )
+                            }
+                        }
+
+                        if (!mapTapLookup.isLoading &&
+                            mapTapLookup.airports.isEmpty() &&
+                            mapTapLookup.navaids.isEmpty() &&
+                            mapTapLookup.airspaces.isEmpty()
+                        ) {
+                            item { EmptyLine("No nearby map data") }
+                        }
+                    }
+                }
+
+                SearchDockRoute.NavigationDetail -> {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            val detail = state.selectedNavigationWaypoint
+                            if (detail != null) {
+                                SectionTitle(text = "Next waypoint")
+                                Text(
+                                    text = detail.navigationLabel,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                )
+                                Text(
+                                    text = "${detail.latitude}, ${detail.longitude}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp),
+                                )
+                            } else {
+                                state.nextWaypoint?.let { waypoint ->
+                                    Button(
+                                        onClick = { onNavigationWaypointDetailRequested(waypoint.id) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text("Next waypoint ${waypoint.navigationLabel}")
+                                    }
+                                }
+                            }
+                            Button(
+                                onClick = onAddWaypointRequested,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("Add waypoint")
+                            }
+                            Button(
+                                onClick = onEndFlightRequested,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = colors.error),
+                            ) {
+                                Text("End flight")
                             }
                         }
                     }

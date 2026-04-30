@@ -19,6 +19,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchUseCase
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockReducer
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRouteResolver
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -89,6 +90,41 @@ class RealSearchDockStoreTest {
         assertEquals("Query cannot be blank", state.searchErrorMessage)
         assertEquals(false, state.isSearching)
         assertTrue(state.availableRoutes.contains(SearchDockRoute.Nearby))
+
+        store.close()
+    }
+
+    @Test
+    fun routeDestinationStartsNavigationAndLocationUpdatesProgress() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val store = createStore(
+            dispatcher = dispatcher,
+            searchRepository = FakeSearchRepository(results = emptyList(), shouldFail = false)
+        )
+
+        store.send(
+            SearchDockIntent.RouteDestinationAdded(
+                SearchDockRoutePoint(
+                    id = "airport:LKPR",
+                    title = "LKPR",
+                    latitude = 50.0,
+                    longitude = 14.1
+                )
+            )
+        )
+        store.send(
+            SearchDockIntent.UserLocationChanged(
+                latitude = 50.0,
+                longitude = 14.0,
+                speedMetersPerSecond = 40.0
+            )
+        )
+
+        val state = store.state.value
+        assertEquals(SearchDockRoute.NavigationDetail, state.activeRoute)
+        assertTrue(state.isNavigating)
+        assertTrue((state.navigationSummary?.remainingDistanceMeters ?: 0.0) > 0.0)
+        assertTrue((state.navigationSummary?.remainingSeconds ?: 0L) > 0L)
 
         store.close()
     }

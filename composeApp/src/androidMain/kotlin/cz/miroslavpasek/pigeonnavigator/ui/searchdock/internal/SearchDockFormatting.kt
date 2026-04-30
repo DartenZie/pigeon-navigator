@@ -114,6 +114,7 @@ internal fun SearchDockRoute.label(): String = when (this) {
     SearchDockRoute.Search -> "Search"
     SearchDockRoute.RoutePlanner -> "Plan"
     SearchDockRoute.MapTap -> "Map Tap"
+    SearchDockRoute.NavigationDetail -> "Navigation"
 }
 
 internal fun routeLabelForIndex(index: Int): String {

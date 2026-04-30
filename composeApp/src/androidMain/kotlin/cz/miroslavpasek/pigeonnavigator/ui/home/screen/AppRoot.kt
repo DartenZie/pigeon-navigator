@@ -175,6 +175,10 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         },
         onMapTapDetailRequested = vm::onMapTapDetailRequested,
         onMapTapDetailClosed = vm::onMapTapDetailClosed,
+        onNavigationDetailRequested = vm::onNavigationDetailRequested,
+        onNavigationWaypointDetailRequested = vm::onNavigationWaypointDetailRequested,
+        onAddWaypointRequested = vm::onAddWaypointRequested,
+        onEndFlightRequested = vm::onEndFlightRequested,
         onAddToRouteClicked = vm::onRouteDestinationAdded,
         onRouteDestinationRemoved = vm::onRouteDestinationRemoved,
     )

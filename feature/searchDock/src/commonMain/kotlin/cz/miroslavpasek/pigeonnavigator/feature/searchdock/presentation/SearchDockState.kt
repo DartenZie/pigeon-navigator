@@ -19,7 +19,24 @@ data class SearchDockRoutePoint(
     val title: String,
     val latitude: Double,
     val longitude: Double
+) {
+    val code: String
+        get() = id.substringAfter(':', id).ifBlank { title }
+
+    val navigationLabel: String
+        get() = if (title.equals(code, ignoreCase = true)) title else "$title ($code)"
+}
+
+data class SearchDockNavigationSummary(
+    val remainingDistanceMeters: Double = 0.0,
+    val remainingSeconds: Long? = null,
+    val speedMetersPerSecond: Double? = null
 )
+
+enum class SearchDockHeaderMode {
+    Search,
+    Navigation
+}
 
 sealed interface SearchDockMapFocus {
     data class Point(
@@ -64,6 +81,9 @@ data class SearchDockState(
     val nearbyPoiErrorMessage: String? = null,
     val nearbyPoiItems: List<SearchDockPoiItem> = emptyList(),
     val routeDestinations: List<SearchDockRoutePoint> = emptyList(),
+    val isNavigating: Boolean = false,
+    val navigationSummary: SearchDockNavigationSummary? = null,
+    val selectedNavigationWaypointId: String? = null,
     /**
      * Cursor of the last [MapTapLookup] for which the dock was auto-expanded.
      * Internal bookkeeping for the reducer's "expand only on a fresh lookup
@@ -80,4 +100,17 @@ data class SearchDockState(
      * lookup arrives or the dock is collapsed.
      */
     val selectedMapTapDetailKey: String? = null
-)
+) {
+    val nextWaypoint: SearchDockRoutePoint?
+        get() = routeDestinations.firstOrNull()
+
+    val selectedNavigationWaypoint: SearchDockRoutePoint?
+        get() = selectedNavigationWaypointId?.let { id -> routeDestinations.firstOrNull { it.id == id } }
+
+    val headerMode: SearchDockHeaderMode
+        get() = if (isNavigating && activeRoute != SearchDockRoute.RoutePlanner && activeRoute != SearchDockRoute.Search) {
+            SearchDockHeaderMode.Navigation
+        } else {
+            SearchDockHeaderMode.Search
+        }
+}

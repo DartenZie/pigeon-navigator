@@ -10,9 +10,10 @@ class SearchDockRouteResolver {
         availableRoutes: List<SearchDockRoute>
     ): SearchDockRoute {
         return when {
-            state.isRoutePlanning -> SearchDockRoute.RoutePlanner
             state.searchQuery.isNotBlank() -> SearchDockRoute.Search
             state.searchResults.isNotEmpty() -> SearchDockRoute.Search
+            state.isRoutePlanning -> SearchDockRoute.RoutePlanner
+            state.isNavigating -> SearchDockRoute.NavigationDetail
             else -> SearchDockRoute.Nearby
         }
     }

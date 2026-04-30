@@ -31,11 +31,18 @@ sealed interface SearchDockIntent {
 
     data class UserLocationChanged(
         val latitude: Double,
-        val longitude: Double
+        val longitude: Double,
+        val speedMetersPerSecond: Double? = null
     ) : SearchDockIntent
 
     data class RouteDestinationAdded(val point: SearchDockRoutePoint) : SearchDockIntent
     data class RouteDestinationRemoved(val id: String) : SearchDockIntent
+    data object OpenNavigationDetail : SearchDockIntent
+    data class OpenNavigationWaypointDetail(val id: String) : SearchDockIntent
+    data object CloseNavigationDetail : SearchDockIntent
+    data object AddWaypointRequested : SearchDockIntent
+    data object EndFlight : SearchDockIntent
+    data class NavigationProgressChanged(val summary: SearchDockNavigationSummary) : SearchDockIntent
 
     data class SearchQueryChanged(val query: String) : SearchDockIntent
     data object SubmitSearch : SearchDockIntent

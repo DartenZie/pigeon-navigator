@@ -121,7 +121,8 @@ struct HomeScreen: View {
             )
             dock.onUserLocationChanged(
                 latitude: loc.latitude,
-                longitude: loc.longitude
+                longitude: loc.longitude,
+                speedMetersPerSecond: Double(loc.speedMetersPerSecond)
             )
         }
     }

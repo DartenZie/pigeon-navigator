@@ -13,7 +13,10 @@ class SearchDockReducer(
                 isSearching = if (intent.expanded) state.isSearching else false,
                 searchResults = if (intent.expanded) state.searchResults else emptyList(),
                 searchErrorMessage = if (intent.expanded) state.searchErrorMessage else null,
+                isRoutePlanning = if (!intent.expanded && state.isNavigating) false else state.isRoutePlanning,
                 selectedRouteOverride = if (intent.expanded && state.hasNoSpecialState()) {
+                    null
+                } else if (!intent.expanded && state.isNavigating) {
                     null
                 } else {
                     state.selectedRouteOverride
@@ -29,12 +32,57 @@ class SearchDockReducer(
             is SearchDockIntent.UserLocationChanged -> state
             is SearchDockIntent.RouteDestinationAdded -> state.copy(
                 isExpanded = true,
-                isRoutePlanning = true,
-                selectedRouteOverride = SearchDockRoute.RoutePlanner,
+                isRoutePlanning = false,
+                isNavigating = true,
+                selectedRouteOverride = SearchDockRoute.NavigationDetail,
+                selectedNavigationWaypointId = null,
                 routeDestinations = state.routeDestinations + intent.point
             )
             is SearchDockIntent.RouteDestinationRemoved -> state.copy(
                 routeDestinations = state.routeDestinations.filterNot { it.id == intent.id }
+            ).let { next ->
+                if (next.routeDestinations.isEmpty() && next.isNavigating) {
+                    next.copy(
+                        isNavigating = false,
+                        isRoutePlanning = false,
+                        navigationSummary = null,
+                        selectedNavigationWaypointId = null,
+                        selectedRouteOverride = null
+                    )
+                } else {
+                    next
+                }
+            }
+            SearchDockIntent.OpenNavigationDetail -> state.copy(
+                isExpanded = true,
+                isRoutePlanning = false,
+                selectedNavigationWaypointId = null,
+                selectedRouteOverride = SearchDockRoute.NavigationDetail
+            )
+            is SearchDockIntent.OpenNavigationWaypointDetail -> state.copy(
+                isExpanded = true,
+                isRoutePlanning = false,
+                selectedNavigationWaypointId = intent.id,
+                selectedRouteOverride = SearchDockRoute.NavigationDetail
+            )
+            SearchDockIntent.CloseNavigationDetail -> state.copy(selectedNavigationWaypointId = null)
+            SearchDockIntent.AddWaypointRequested -> state.copy(
+                isExpanded = true,
+                isRoutePlanning = true,
+                selectedNavigationWaypointId = null,
+                selectedRouteOverride = SearchDockRoute.RoutePlanner
+            )
+            SearchDockIntent.EndFlight -> state.copy(
+                isExpanded = false,
+                isRoutePlanning = false,
+                isNavigating = false,
+                selectedRouteOverride = null,
+                routeDestinations = emptyList(),
+                navigationSummary = null,
+                selectedNavigationWaypointId = null
+            )
+            is SearchDockIntent.NavigationProgressChanged -> state.copy(
+                navigationSummary = intent.summary
             )
             is SearchDockIntent.SearchQueryChanged -> {
                 val trimmedQuery = intent.query.trim()
@@ -54,7 +102,7 @@ class SearchDockReducer(
                 isExpanded = true,
                 isSearching = true,
                 searchErrorMessage = null,
-                selectedRouteOverride = null
+                selectedRouteOverride = SearchDockRoute.Search
             )
 
             SearchDockIntent.SearchCleared -> state.copy(
@@ -69,13 +117,13 @@ class SearchDockReducer(
                 isSearching = false,
                 searchResults = intent.results,
                 searchErrorMessage = null,
-                selectedRouteOverride = null
+                selectedRouteOverride = SearchDockRoute.Search
             )
 
             is SearchDockIntent.SearchFailed -> state.copy(
                 isSearching = false,
                 searchErrorMessage = intent.failure.toMessage(),
-                selectedRouteOverride = null
+                selectedRouteOverride = SearchDockRoute.Search
             )
 
             SearchDockIntent.NearbyPoiLoadRequested -> state.copy(

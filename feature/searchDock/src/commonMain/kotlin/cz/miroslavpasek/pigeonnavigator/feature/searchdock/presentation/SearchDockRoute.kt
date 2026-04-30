@@ -4,5 +4,6 @@ enum class SearchDockRoute {
     Nearby,
     Search,
     RoutePlanner,
-    MapTap
+    MapTap,
+    NavigationDetail
 }

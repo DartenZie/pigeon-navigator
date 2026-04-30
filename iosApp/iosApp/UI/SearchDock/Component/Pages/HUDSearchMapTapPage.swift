@@ -151,8 +151,10 @@ struct HUDSearchMapTapPage: View {
 
         VStack(spacing: 8) {
             detailActionButton(title: "Locate on Map", systemImage: "mappin.and.ellipse") { detail.locate(self) }
-            detailActionButton(title: "Add to Route", systemImage: "plus") {
-                onAddToRouteTap(detail.routeId, detail.title, detail.latitude, detail.longitude)
+            if !dock.isRouteDestination(detail.routeId) {
+                detailActionButton(title: "Add to Route", systemImage: "plus") {
+                    onAddToRouteTap(detail.routeId, detail.title, detail.latitude, detail.longitude)
+                }
             }
         }
         .padding(.top, 4)

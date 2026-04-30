@@ -57,8 +57,13 @@ import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDo
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockHeaderMode
 import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import org.koin.core.context.GlobalContext
 
 private enum class AndroidSearchDockSize { Bar, Half, Full }
@@ -94,6 +99,10 @@ fun SearchDock(
     onMapTapNavaidSelected: (NearbyNavaid) -> Unit = {},
     onMapTapDetailRequested: (key: String) -> Unit = {},
     onMapTapDetailClosed: () -> Unit = {},
+    onNavigationDetailRequested: () -> Unit = {},
+    onNavigationWaypointDetailRequested: (id: String) -> Unit = {},
+    onAddWaypointRequested: () -> Unit = {},
+    onEndFlightRequested: () -> Unit = {},
     onAddToRouteClicked: (SearchDockRoutePoint) -> Unit,
     onRouteDestinationRemoved: (String) -> Unit,
     onFullExpandedChange: (Boolean) -> Unit = {},
@@ -126,6 +135,12 @@ fun SearchDock(
         }
     }
 
+    LaunchedEffect(state.activeRoute) {
+        if (state.activeRoute == SearchDockRoute.NavigationDetail && dockSize == AndroidSearchDockSize.Full) {
+            dockSize = AndroidSearchDockSize.Half
+        }
+    }
+
     LaunchedEffect(state.searchQuery, isSearchFocused, searchPreferences) {
         val trimmedQuery = state.searchQuery.trim()
         if (!isSearchFocused || trimmedQuery.length < searchPreferences.minimumQueryLength) {
@@ -136,8 +151,13 @@ fun SearchDock(
     }
 
     fun updateDockSize(newSize: AndroidSearchDockSize) {
-        dockSize = newSize
-        val expanded = newSize != AndroidSearchDockSize.Bar
+        val allowedSize = if (state.activeRoute == SearchDockRoute.NavigationDetail && newSize == AndroidSearchDockSize.Full) {
+            AndroidSearchDockSize.Half
+        } else {
+            newSize
+        }
+        dockSize = allowedSize
+        val expanded = allowedSize != AndroidSearchDockSize.Bar
         if (state.isExpanded != expanded) {
             onExpandedChange(expanded)
         }
@@ -239,11 +259,16 @@ fun SearchDock(
                         .fillMaxWidth()
                         .align(Alignment.Center)
                         .padding(horizontal = 14.dp, vertical = 8.dp)
-                        .height(44.dp)
+                        .height(if (state.headerMode == SearchDockHeaderMode.Navigation) 52.dp else 44.dp)
                         .clickable {
-                            updateDockSize(AndroidSearchDockSize.Full)
-                            onRouteSelected(SearchDockRoute.Search)
-                            focusRequester.requestFocus()
+                            if (state.headerMode == SearchDockHeaderMode.Navigation) {
+                                updateDockSize(AndroidSearchDockSize.Half)
+                                onNavigationDetailRequested()
+                            } else {
+                                updateDockSize(AndroidSearchDockSize.Full)
+                                onRouteSelected(SearchDockRoute.Search)
+                                focusRequester.requestFocus()
+                            }
                         },
                     shape = RoundedCornerShape(12.dp),
                     color = if (dockSize == AndroidSearchDockSize.Bar) {
@@ -252,55 +277,59 @@ fun SearchDock(
                         colors.surface
                     },
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Search,
-                            contentDescription = null,
-                            tint = colors.onSurface,
-                        )
-                        BasicTextField(
-                            value = state.searchQuery,
-                            onValueChange = { query ->
-                                onQueryChanged(query)
-                                onRouteSelected(SearchDockRoute.Search)
-                                if (query.isBlank()) {
-                                    onClearSearch()
-                                }
-                            },
+                    if (state.headerMode == SearchDockHeaderMode.Navigation) {
+                        NavigationSummaryRow(state = state, modifier = Modifier.padding(horizontal = 12.dp))
+                    } else {
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(focusRequester)
-                                .onFocusChanged { focusState ->
-                                    isSearchFocused = focusState.isFocused
-                                    if (focusState.isFocused) {
-                                        updateDockSize(AndroidSearchDockSize.Full)
-                                        onRouteSelected(SearchDockRoute.Search)
+                                .fillMaxWidth()
+                                .padding(horizontal = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Search,
+                                contentDescription = null,
+                                tint = colors.onSurface,
+                            )
+                            BasicTextField(
+                                value = state.searchQuery,
+                                onValueChange = { query ->
+                                    onQueryChanged(query)
+                                    onRouteSelected(SearchDockRoute.Search)
+                                    if (query.isBlank()) {
+                                        onClearSearch()
                                     }
                                 },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
-                            cursorBrush = SolidColor(colors.primary),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
-                            decorationBox = { innerTextField ->
-                                Box(contentAlignment = Alignment.CenterStart) {
-                                    if (state.searchQuery.isEmpty()) {
-                                        Text(
-                                            text = "Search...",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = colors.onSurfaceVariant,
-                                        )
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(focusRequester)
+                                    .onFocusChanged { focusState ->
+                                        isSearchFocused = focusState.isFocused
+                                        if (focusState.isFocused) {
+                                            updateDockSize(AndroidSearchDockSize.Full)
+                                            onRouteSelected(SearchDockRoute.Search)
+                                        }
+                                    },
+                                singleLine = true,
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
+                                cursorBrush = SolidColor(colors.primary),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = { onSubmitSearch() }),
+                                decorationBox = { innerTextField ->
+                                    Box(contentAlignment = Alignment.CenterStart) {
+                                        if (state.searchQuery.isEmpty()) {
+                                            Text(
+                                                text = "Search...",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = colors.onSurfaceVariant,
+                                            )
+                                        }
+                                        innerTextField()
                                     }
-                                    innerTextField()
-                                }
-                            },
-                        )
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -316,10 +345,14 @@ fun SearchDock(
                     onMapTapNavaidSelected = onMapTapNavaidSelected,
                     onMapTapDetailRequested = onMapTapDetailRequested,
                     onMapTapDetailClosed = onMapTapDetailClosed,
+                    onNavigationDetailRequested = onNavigationDetailRequested,
+                    onNavigationWaypointDetailRequested = onNavigationWaypointDetailRequested,
+                    onAddWaypointRequested = onAddWaypointRequested,
+                    onEndFlightRequested = onEndFlightRequested,
                     onAddToRouteClicked = onAddToRouteClicked,
                     onRouteDestinationRemoved = onRouteDestinationRemoved,
                     onContentScrollStarted = {
-                        if (dockSize == AndroidSearchDockSize.Half) {
+                        if (dockSize == AndroidSearchDockSize.Half && state.activeRoute != SearchDockRoute.NavigationDetail) {
                             updateDockSize(AndroidSearchDockSize.Full)
                         }
                     },
@@ -329,5 +362,55 @@ fun SearchDock(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun NavigationSummaryRow(
+    state: SearchDockState,
+    modifier: Modifier = Modifier,
+) {
+    val summary = state.navigationSummary
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        NavigationMetric(label = "arrival", value = formatArrival(summary?.remainingSeconds))
+        NavigationMetric(label = "min", value = formatMinutes(summary?.remainingSeconds))
+        NavigationMetric(label = distanceUnit(summary?.remainingDistanceMeters), value = formatDistanceValue(summary?.remainingDistanceMeters))
+    }
+}
+
+@Composable
+private fun NavigationMetric(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = value, style = MaterialTheme.typography.titleSmall)
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun formatArrival(remainingSeconds: Long?): String {
+    val seconds = remainingSeconds ?: return "--:--"
+    val formatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+    return formatter.format(Date(System.currentTimeMillis() + seconds * 1000L))
+}
+
+private fun formatMinutes(remainingSeconds: Long?): String {
+    val seconds = remainingSeconds ?: return "--"
+    return maxOf(1, (seconds / 60.0).roundToInt()).toString()
+}
+
+private fun distanceUnit(distanceMeters: Double?): String {
+    val meters = distanceMeters ?: return "km"
+    return if (meters >= 1000.0) "km" else "m"
+}
+
+private fun formatDistanceValue(distanceMeters: Double?): String {
+    val meters = distanceMeters ?: return "--"
+    return if (meters >= 1000.0) {
+        ((meters / 1000.0 * 10.0).roundToInt() / 10.0).toString()
+    } else {
+        meters.roundToInt().toString()
     }
 }

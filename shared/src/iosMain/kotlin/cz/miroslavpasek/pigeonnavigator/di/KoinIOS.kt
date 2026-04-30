@@ -479,11 +479,12 @@ class SearchDockHandle(
     }
 
     /** Pushes the latest user location so nearby POIs can refresh. */
-    fun onUserLocationChanged(latitude: Double, longitude: Double) {
+    fun onUserLocationChanged(latitude: Double, longitude: Double, speedMetersPerSecond: Double? = null) {
         store.send(
             SearchDockIntent.UserLocationChanged(
                 latitude = latitude,
-                longitude = longitude
+                longitude = longitude,
+                speedMetersPerSecond = speedMetersPerSecond
             )
         )
     }
@@ -510,6 +511,26 @@ class SearchDockHandle(
     /** Removes a destination from the shared route planner. */
     fun removeRouteDestination(id: String) {
         store.send(SearchDockIntent.RouteDestinationRemoved(id = id))
+    }
+
+    fun openNavigationDetail() {
+        store.send(SearchDockIntent.OpenNavigationDetail)
+    }
+
+    fun openNavigationWaypointDetail(id: String) {
+        store.send(SearchDockIntent.OpenNavigationWaypointDetail(id = id))
+    }
+
+    fun closeNavigationDetail() {
+        store.send(SearchDockIntent.CloseNavigationDetail)
+    }
+
+    fun addWaypoint() {
+        store.send(SearchDockIntent.AddWaypointRequested)
+    }
+
+    fun endFlight() {
+        store.send(SearchDockIntent.EndFlight)
     }
 
     /** Stops active jobs and closes the underlying store. */
@@ -566,7 +587,18 @@ data class SearchDockViewState(
     val nearbyPoiErrorMessage: String? = null,
     val nearbyPoiItems: List<SearchDockPoiViewItem> = emptyList(),
     val routeDestinations: List<SearchDockRoutePointViewItem> = emptyList(),
-    val selectedMapTapDetailKey: String? = null
+    val selectedMapTapDetailKey: String? = null,
+    val isNavigating: Boolean = false,
+    val navigationSummary: SearchDockNavigationSummaryViewItem? = null,
+    val nextWaypoint: SearchDockRoutePointViewItem? = null,
+    val selectedNavigationWaypoint: SearchDockRoutePointViewItem? = null,
+    val headerModeTag: String = "search"
+)
+
+data class SearchDockNavigationSummaryViewItem(
+    val remainingDistanceMeters: Double,
+    val remainingSeconds: Long?,
+    val speedMetersPerSecond: Double?
 )
 
 private fun SearchDockRoute.toTag(): String = when (this) {
@@ -574,6 +606,7 @@ private fun SearchDockRoute.toTag(): String = when (this) {
     SearchDockRoute.Search -> "search"
     SearchDockRoute.RoutePlanner -> "routePlanner"
     SearchDockRoute.MapTap -> "mapTap"
+    SearchDockRoute.NavigationDetail -> "navigationDetail"
 }
 
 private fun String.toSearchDockRoute(): SearchDockRoute? = when (this) {
@@ -581,6 +614,7 @@ private fun String.toSearchDockRoute(): SearchDockRoute? = when (this) {
     "search" -> SearchDockRoute.Search
     "routePlanner" -> SearchDockRoute.RoutePlanner
     "mapTap" -> SearchDockRoute.MapTap
+    "navigationDetail" -> SearchDockRoute.NavigationDetail
     else -> null
 }
 
@@ -617,7 +651,27 @@ private fun SearchDockState.toViewState(): SearchDockViewState {
                 longitude = it.longitude
             )
         },
-        selectedMapTapDetailKey = selectedMapTapDetailKey
+        selectedMapTapDetailKey = selectedMapTapDetailKey,
+        isNavigating = isNavigating,
+        navigationSummary = navigationSummary?.let {
+            SearchDockNavigationSummaryViewItem(
+                remainingDistanceMeters = it.remainingDistanceMeters,
+                remainingSeconds = it.remainingSeconds,
+                speedMetersPerSecond = it.speedMetersPerSecond
+            )
+        },
+        nextWaypoint = nextWaypoint?.toViewItem(),
+        selectedNavigationWaypoint = selectedNavigationWaypoint?.toViewItem(),
+        headerModeTag = headerMode.name.lowercase()
+    )
+}
+
+private fun SearchDockRoutePoint.toViewItem(): SearchDockRoutePointViewItem {
+    return SearchDockRoutePointViewItem(
+        id = id,
+        title = title,
+        latitude = latitude,
+        longitude = longitude
     )
 }
 

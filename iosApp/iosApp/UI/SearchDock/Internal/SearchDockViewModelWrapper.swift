@@ -10,6 +10,7 @@ enum HUDSearchRoute: String, CaseIterable, Hashable {
     case search
     case routePlanner
     case mapTap
+    case navigationDetail
 
     init(tag: String) {
         self = HUDSearchRoute(rawValue: tag) ?? .nearby
@@ -23,6 +24,7 @@ enum HUDSearchRoute: String, CaseIterable, Hashable {
         case .search: return "Search"
         case .routePlanner: return "Route"
         case .mapTap: return "Map Tap"
+        case .navigationDetail: return "Navigation"
         }
     }
 
@@ -32,8 +34,14 @@ enum HUDSearchRoute: String, CaseIterable, Hashable {
         case .search: return "magnifyingglass"
         case .routePlanner: return "point.topleft.down.curvedto.point.bottomright.up"
         case .mapTap: return "mappin.and.ellipse"
+        case .navigationDetail: return "location.north.line"
         }
     }
+}
+
+enum HUDActionHeaderMode: String {
+    case search
+    case navigation
 }
 
 /// Bridges the shared Kotlin `SearchDockHandle` into an observable SwiftUI model.
@@ -56,6 +64,11 @@ final class SearchDockViewModelWrapper: ObservableObject {
     @Published var nearbyPoiItems: [SearchDockPoiViewItem] = []
     @Published var routeDestinations: [SearchDockRoutePointViewItem] = []
     @Published var selectedMapTapDetailKey: String? = nil
+    @Published var isNavigating: Bool = false
+    @Published var navigationSummary: SearchDockNavigationSummaryViewItem? = nil
+    @Published var nextWaypoint: SearchDockRoutePointViewItem? = nil
+    @Published var selectedNavigationWaypoint: SearchDockRoutePointViewItem? = nil
+    @Published var headerMode: HUDActionHeaderMode = .search
 
     init() {
         self.handle = SearchDockHelper.resolve()
@@ -77,6 +90,11 @@ final class SearchDockViewModelWrapper: ObservableObject {
             self.nearbyPoiItems = state.nearbyPoiItems
             self.routeDestinations = state.routeDestinations
             self.selectedMapTapDetailKey = state.selectedMapTapDetailKey
+            self.isNavigating = state.isNavigating
+            self.navigationSummary = state.navigationSummary
+            self.nextWaypoint = state.nextWaypoint
+            self.selectedNavigationWaypoint = state.selectedNavigationWaypoint
+            self.headerMode = HUDActionHeaderMode(rawValue: state.headerModeTag) ?? .search
         }
     }
 
@@ -125,12 +143,20 @@ final class SearchDockViewModelWrapper: ObservableObject {
         )
     }
 
-    func onUserLocationChanged(latitude: Double, longitude: Double) {
-        handle.onUserLocationChanged(latitude: latitude, longitude: longitude)
+    func onUserLocationChanged(latitude: Double, longitude: Double, speedMetersPerSecond: Double? = nil) {
+        handle.onUserLocationChanged(
+            latitude: latitude,
+            longitude: longitude,
+            speedMetersPerSecond: speedMetersPerSecond.map { KotlinDouble(value: $0) }
+        )
     }
 
     func addRouteDestination(id: String, title: String, latitude: Double, longitude: Double) {
         handle.addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
+    }
+
+    func isRouteDestination(_ id: String) -> Bool {
+        routeDestinations.contains { $0.id == id }
     }
 
     func removeRouteDestination(id: String) {
@@ -145,6 +171,26 @@ final class SearchDockViewModelWrapper: ObservableObject {
     /// Dismisses the map-tap detail panel and returns to the list view.
     func closeMapTapDetail() {
         handle.closeMapTapDetail()
+    }
+
+    func openNavigationDetail() {
+        handle.openNavigationDetail()
+    }
+
+    func openNavigationWaypointDetail(id: String) {
+        handle.openNavigationWaypointDetail(id: id)
+    }
+
+    func closeNavigationDetail() {
+        handle.closeNavigationDetail()
+    }
+
+    func addWaypoint() {
+        handle.addWaypoint()
+    }
+
+    func endFlight() {
+        handle.endFlight()
     }
 
     deinit {

@@ -66,7 +66,9 @@ struct HUDSearchBar: View {
     private let handleTopPadding: CGFloat = 4
     private let handleWidth: CGFloat = 36
     private let handleHeight: CGFloat = 5
-    private let searchRowHeight: CGFloat = 48
+    private var actionRowHeight: CGFloat {
+        dock.headerMode == .navigation ? 60 : 48
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -79,13 +81,13 @@ struct HUDSearchBar: View {
 
                     if size == .half || size == .full {
                         resultsContent
-                            .padding(.top, 52)
+                            .padding(.top, expandedContentTopPadding)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
                 .frame(
-                    width: size.width(in: geo),
-                    height: size.height(in: geo) + dragResistance(dragOffset)
+                    width: actionBarWidth(in: geo),
+                    height: actionBarHeight(in: geo) + dragResistance(dragOffset)
                 )
                 .modifier(HUDSearchBarGlassStyle(cornerRadius: size.cornerRadius, isSolid: size == .full))
                 .clipShape(RoundedRectangle(cornerRadius: size.cornerRadius, style: .continuous))
@@ -101,6 +103,9 @@ struct HUDSearchBar: View {
         .onChange(of: size) { (newSize: HUDSize) in
             if newSize != .full {
                 isSearchFocused = false
+            }
+            if newSize == .full && dock.activeRoute == .navigationDetail {
+                hudSize = .half
             }
         }
         .onChange(of: isSearchFocused) { (focused: Bool) in
@@ -134,61 +139,75 @@ struct HUDSearchBar: View {
     }
 
     private func searchRow(geo: GeometryProxy) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.black.opacity(0.8))
+        Group {
+            if dock.headerMode == .navigation {
+                navigationSummaryRow
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.black.opacity(0.8))
 
-            TextField("Search...", text: $dock.query)
-                .font(.system(size: 14))
-                .foregroundStyle(.black)
-                .padding(.vertical, 6)
-                .padding(.horizontal, 2)
-                .autocorrectionDisabled()
-                .submitLabel(.search)
-                .focused($isSearchFocused)
-                .allowsHitTesting(size == .full)
-                .onSubmit {
-                    dock.submitSearch()
-                }
-                .onChange(of: dock.query) { (newQuery: String) in
-                    dock.onQueryChange(newQuery)
-                    cancelPendingSearch()
-
-                    let trimmed = newQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if trimmed.isEmpty {
-                        dock.clearSearch()
-                        if isSearchFocused {
-                            dock.selectRoute(.search)
+                    TextField("Search...", text: $dock.query)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.black)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 2)
+                        .autocorrectionDisabled()
+                        .submitLabel(.search)
+                        .focused($isSearchFocused)
+                        .allowsHitTesting(size == .full)
+                        .onSubmit {
+                            dock.submitSearch()
                         }
-                        return
-                    }
+                        .onChange(of: dock.query) { (newQuery: String) in
+                            dock.onQueryChange(newQuery)
+                            cancelPendingSearch()
 
-                    guard isSearchFocused else { return }
+                            let trimmed = newQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if trimmed.isEmpty {
+                                dock.clearSearch()
+                                if isSearchFocused {
+                                    dock.selectRoute(.search)
+                                }
+                                return
+                            }
 
-                    dock.selectRoute(.search)
-                    guard trimmed.count >= minimumSearchQueryLength else { return }
+                            guard isSearchFocused else { return }
 
-                    let workItem = DispatchWorkItem {
-                        dock.submitSearch()
-                    }
-                    pendingSearchWorkItem = workItem
-                    DispatchQueue.main.asyncAfter(deadline: .now() + searchDebounceDelay, execute: workItem)
+                            dock.selectRoute(.search)
+                            guard trimmed.count >= minimumSearchQueryLength else { return }
+
+                            let workItem = DispatchWorkItem {
+                                dock.submitSearch()
+                            }
+                            pendingSearchWorkItem = workItem
+                            DispatchQueue.main.asyncAfter(deadline: .now() + searchDebounceDelay, execute: workItem)
+                        }
+
+                    Spacer()
                 }
-
-            Spacer()
+            }
         }
         .padding(.horizontal, 10)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(size == .bar ? Color.clear : Color.white)
+                .fill(size == .bar || dock.headerMode == .navigation ? Color.clear : Color.white)
         )
         .padding(.horizontal, 14)
         .padding(.vertical, 6)
-        .frame(width: size.width(in: geo), height: searchRowHeight)
+        .frame(width: actionBarWidth(in: geo), height: actionRowHeight)
         .offset(y: size == .bar ? 0 : 6)
         .contentShape(Rectangle())
         .onTapGesture {
+            if dock.headerMode == .navigation {
+                withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
+                    hudSize = .half
+                }
+                dock.openNavigationDetail()
+                return
+            }
+
             guard size != .full else { return }
 
             withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
@@ -198,6 +217,70 @@ struct HUDSearchBar: View {
                 isSearchFocused = true
             }
         }
+    }
+
+    private var navigationSummaryRow: some View {
+        HStack(spacing: size == .bar ? 42 : 12) {
+            if size != .bar { Spacer(minLength: 0) }
+            navigationMetric(value: arrivalLabel, label: "arrival")
+            if size != .bar { Spacer(minLength: 0) }
+            navigationMetric(value: remainingMinutesLabel, label: "min")
+            if size != .bar { Spacer(minLength: 0) }
+            navigationMetric(value: remainingDistanceValue, label: remainingDistanceUnit)
+            if size != .bar { Spacer(minLength: 0) }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func navigationMetric(value: String, label: String) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(size: size == .bar ? 19 : 21, weight: .bold))
+                .foregroundStyle(.black)
+            Text(label)
+                .font(.system(size: size == .bar ? 11 : 13, weight: .semibold))
+                .foregroundStyle(.black.opacity(0.6))
+        }
+    }
+
+    private func actionBarWidth(in geo: GeometryProxy) -> CGFloat {
+        if dock.headerMode == .navigation && size == .bar {
+            return min(geo.size.width - 64, 340)
+        }
+        return size.width(in: geo)
+    }
+
+    private func actionBarHeight(in geo: GeometryProxy) -> CGFloat {
+        if dock.headerMode == .navigation && size == .bar {
+            return 60
+        }
+        if dock.activeRoute == .navigationDetail && size == .half {
+            return navigationDetailHalfHeight
+        }
+        return size.height(in: geo)
+    }
+
+    private var navigationDetailHalfHeight: CGFloat {
+        if dock.selectedNavigationWaypoint != nil {
+            let detailContentHeight: CGFloat = 132
+            let contentPaddingTop: CGFloat = expandedContentTopPadding
+            let routeContentBottomPadding: CGFloat = 16
+            return contentPaddingTop + detailContentHeight + routeContentBottomPadding
+        }
+
+        let buttonCount: CGFloat = dock.nextWaypoint != nil ? 3 : 2
+        let buttonHeight: CGFloat = 58
+        let buttonSpacing: CGFloat = 12
+        let bottomPadding: CGFloat = 16
+        let contentPaddingTop: CGFloat = expandedContentTopPadding
+        let routeContentBottomPadding: CGFloat = 16
+        let verticalPadding: CGFloat = 0
+        let buttonsHeight = buttonCount * buttonHeight + max(0, buttonCount - 1) * buttonSpacing + bottomPadding
+        return contentPaddingTop + buttonsHeight + routeContentBottomPadding + verticalPadding
+    }
+
+    private var expandedContentTopPadding: CGFloat {
+        dock.activeRoute == .navigationDetail ? 78 : 52
     }
 
     private func cancelPendingSearch() {
@@ -217,6 +300,7 @@ struct HUDSearchBar: View {
             DragGesture(minimumDistance: 1)
                 .onChanged { _ in
                     guard hudSize == .half else { return }
+                    guard dock.activeRoute != .navigationDetail else { return }
                     withAnimation(.spring(response: 0.44, dampingFraction: 0.76)) {
                         hudSize = .full
                     }
@@ -251,6 +335,8 @@ struct HUDSearchBar: View {
                 onPoiTap: onNearbyPoiTap,
                 onAddToRouteTap: onAddNearbyPoiToRouteTap
             )
+        case .navigationDetail:
+            HUDNavigationDetailPage(dock: dock)
         }
     }
 
@@ -273,6 +359,7 @@ struct HUDSearchBar: View {
 
     private func nextSize(velocity: CGFloat, drag: CGFloat, geo: GeometryProxy) -> HUDSize {
         let projectedMotion = velocity - drag
+        if dock.activeRoute == .navigationDetail && projectedMotion < -500 { return .half }
         if projectedMotion < -500 { return .full }
         if projectedMotion > 500 { return .bar }
         if abs(drag) > 24 { return .half }
@@ -287,7 +374,7 @@ struct HUDSearchBar: View {
         case .bar:
             return .half
         case .half:
-            return .full
+            return dock.activeRoute == .navigationDetail ? .half : .full
         case .full:
             return .full
         }
@@ -307,6 +394,32 @@ struct HUDSearchBar: View {
     private func dragResistance(_ dy: CGFloat) -> CGFloat {
         guard dy != 0 else { return 0 }
         return -dy * 0.25
+    }
+
+    private var arrivalLabel: String {
+        guard let seconds = dock.navigationSummary?.remainingSeconds?.int64Value else { return "--:--" }
+        let arrival = Date().addingTimeInterval(TimeInterval(seconds))
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: arrival)
+    }
+
+    private var remainingMinutesLabel: String {
+        guard let seconds = dock.navigationSummary?.remainingSeconds?.int64Value else { return "--" }
+        return String(max(1, Int((Double(seconds) / 60.0).rounded())))
+    }
+
+    private var remainingDistanceUnit: String {
+        guard let meters = dock.navigationSummary?.remainingDistanceMeters else { return "km" }
+        return meters >= 1000 ? "km" : "m"
+    }
+
+    private var remainingDistanceValue: String {
+        guard let meters = dock.navigationSummary?.remainingDistanceMeters else { return "--" }
+        if meters >= 1000 {
+            return String(format: "%.1f", meters / 1000.0)
+        }
+        return String(Int(meters.rounded()))
     }
 }
 

@@ -11,9 +11,11 @@ import cz.miroslavpasek.pigeonnavigator.domain.search.SearchUseCase
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.api.SearchDockStore
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockEffect
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockIntent
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockNavigationSummary
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockPoiItem
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockReducer
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoute
+import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockRoutePoint
 import cz.miroslavpasek.pigeonnavigator.feature.searchdock.presentation.SearchDockState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
@@ -49,6 +51,8 @@ internal class RealSearchDockStore(
     private val effectChannel = Channel<SearchDockEffect>(capacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     private var latestLocation: Coordinate? = null
     private var lastNearbyPoiFetchLocation: Coordinate? = null
+    private var averageGroundSpeedMetersPerSecond: Double? = null
+    private var speedSampleCount: Int = 0
 
     override val state: StateFlow<SearchDockState> = mutableState.asStateFlow()
     override val effects: Flow<SearchDockEffect> = effectChannel.receiveAsFlow()
@@ -57,7 +61,9 @@ internal class RealSearchDockStore(
         when (intent) {
             is SearchDockIntent.UserLocationChanged -> {
                 latestLocation = Coordinate(intent.latitude, intent.longitude)
+                recordSpeedSample(intent.speedMetersPerSecond)
                 reduce(intent)
+                updateNavigationProgress()
                 if (state.value.isExpanded && state.value.activeRoute == SearchDockRoute.Nearby) {
                     loadNearbyPoiIfNeeded(force = state.value.nearbyPoiItems.isEmpty())
                 }
@@ -81,8 +87,6 @@ internal class RealSearchDockStore(
             is SearchDockIntent.RoutePlanningChanged,
             is SearchDockIntent.MapSelectionChanged,
             is SearchDockIntent.MapTapLookupChanged,
-            is SearchDockIntent.RouteDestinationAdded,
-            is SearchDockIntent.RouteDestinationRemoved,
             is SearchDockIntent.SearchQueryChanged,
             SearchDockIntent.SearchCleared,
             SearchDockIntent.NearbyPoiLoadRequested,
@@ -91,7 +95,24 @@ internal class RealSearchDockStore(
             is SearchDockIntent.SearchSucceeded,
             is SearchDockIntent.SearchFailed,
             is SearchDockIntent.OpenMapTapDetail,
-            SearchDockIntent.CloseMapTapDetail -> reduce(intent)
+            SearchDockIntent.CloseMapTapDetail,
+            is SearchDockIntent.OpenNavigationWaypointDetail,
+            SearchDockIntent.CloseNavigationDetail -> reduce(intent)
+
+            is SearchDockIntent.RouteDestinationAdded,
+            is SearchDockIntent.RouteDestinationRemoved,
+            SearchDockIntent.OpenNavigationDetail,
+            SearchDockIntent.AddWaypointRequested,
+            SearchDockIntent.EndFlight -> {
+                reduce(intent)
+                if (intent == SearchDockIntent.EndFlight) {
+                    resetNavigationProgress()
+                } else {
+                    updateNavigationProgress()
+                }
+            }
+
+            is SearchDockIntent.NavigationProgressChanged -> reduce(intent)
         }
     }
 
@@ -162,6 +183,73 @@ internal class RealSearchDockStore(
         }
     }
 
+    private fun updateNavigationProgress() {
+        val currentState = state.value
+        if (!currentState.isNavigating || currentState.routeDestinations.isEmpty()) {
+            return
+        }
+        val location = latestLocation
+        val remainingDistance = if (location != null) {
+            remainingRouteDistanceMeters(location, currentState.routeDestinations)
+        } else {
+            routeDistanceMeters(currentState.routeDestinations)
+        }
+        val speed = averageGroundSpeedMetersPerSecond
+            ?.takeIf { it >= MIN_NAVIGATION_SPEED_METERS_PER_SECOND }
+            ?: DEFAULT_SMALL_AIRCRAFT_SPEED_METERS_PER_SECOND
+        val remainingSeconds = (remainingDistance / speed).roundToInt().toLong()
+        reduce(
+            SearchDockIntent.NavigationProgressChanged(
+                SearchDockNavigationSummary(
+                    remainingDistanceMeters = remainingDistance,
+                    remainingSeconds = remainingSeconds,
+                    speedMetersPerSecond = speed
+                )
+            )
+        )
+    }
+
+    private fun recordSpeedSample(speedMetersPerSecond: Double?) {
+        val speed = speedMetersPerSecond?.takeIf { it >= MIN_NAVIGATION_SPEED_METERS_PER_SECOND } ?: return
+        val previousAverage = averageGroundSpeedMetersPerSecond
+        if (previousAverage == null) {
+            averageGroundSpeedMetersPerSecond = speed
+            speedSampleCount = 1
+            return
+        }
+        speedSampleCount += 1
+        averageGroundSpeedMetersPerSecond = previousAverage + (speed - previousAverage) / speedSampleCount
+    }
+
+    private fun resetNavigationProgress() {
+        averageGroundSpeedMetersPerSecond = null
+        speedSampleCount = 0
+    }
+
+    private fun remainingRouteDistanceMeters(current: Coordinate, destinations: List<SearchDockRoutePoint>): Double {
+        if (destinations.isEmpty()) return 0.0
+        var total = haversineMeters(
+            lat1 = current.latitude,
+            lon1 = current.longitude,
+            lat2 = destinations.first().latitude,
+            lon2 = destinations.first().longitude
+        )
+        total += routeDistanceMeters(destinations)
+        return total
+    }
+
+    private fun routeDistanceMeters(destinations: List<SearchDockRoutePoint>): Double {
+        if (destinations.size < 2) return 0.0
+        return destinations.zipWithNext().sumOf { (from, to) ->
+            haversineMeters(
+                lat1 = from.latitude,
+                lon1 = from.longitude,
+                lat2 = to.latitude,
+                lon2 = to.longitude
+            )
+        }
+    }
+
     private fun shouldRefetchNearbyPoi(current: Coordinate): Boolean {
         val previous = lastNearbyPoiFetchLocation ?: return true
         return haversineMeters(
@@ -223,6 +311,8 @@ internal class RealSearchDockStore(
         const val MIN_NEARBY_POI_REFETCH_DISTANCE_METERS = 150.0
         const val NEARBY_POI_RADIUS_METERS = 25_000.0
         const val NEARBY_POI_LIMIT = 6
+        const val DEFAULT_SMALL_AIRCRAFT_SPEED_METERS_PER_SECOND = 51.4
+        const val MIN_NAVIGATION_SPEED_METERS_PER_SECOND = 5.0
 
         fun formatDistance(distanceMeters: Double): String {
             return if (distanceMeters >= 1000.0) {

@@ -105,6 +105,22 @@ class HomeViewModel(
         searchDockStore.send(SearchDockIntent.CloseMapTapDetail)
     }
 
+    fun onNavigationDetailRequested() {
+        searchDockStore.send(SearchDockIntent.OpenNavigationDetail)
+    }
+
+    fun onNavigationWaypointDetailRequested(id: String) {
+        searchDockStore.send(SearchDockIntent.OpenNavigationWaypointDetail(id = id))
+    }
+
+    fun onAddWaypointRequested() {
+        searchDockStore.send(SearchDockIntent.AddWaypointRequested)
+    }
+
+    fun onEndFlightRequested() {
+        searchDockStore.send(SearchDockIntent.EndFlight)
+    }
+
     fun collapseSearchDock() {
         collapseSearchDockIfExpanded()
     }
@@ -133,7 +149,8 @@ class HomeViewModel(
                     searchDockStore.send(
                         SearchDockIntent.UserLocationChanged(
                             latitude = loc.latitude,
-                            longitude = loc.longitude
+                            longitude = loc.longitude,
+                            speedMetersPerSecond = loc.speedMetersPerSecond.toDouble()
                         )
                     )
                 }
