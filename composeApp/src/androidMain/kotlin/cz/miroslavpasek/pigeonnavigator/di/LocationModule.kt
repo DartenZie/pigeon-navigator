@@ -8,7 +8,7 @@ import org.koin.dsl.module
 val locationModule = module {
     single {
         LocationServiceConfig(
-            source = LocationStreamSource.DeviceGps,
+            source = LocationStreamSource.UdpDebug,
             udpListener = UdpLocationListenerConfig(
                 ipAddress = "0.0.0.0",
                 port = 49002,

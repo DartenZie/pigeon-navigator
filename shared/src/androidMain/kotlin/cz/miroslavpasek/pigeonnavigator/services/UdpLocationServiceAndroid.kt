@@ -1,6 +1,8 @@
 package cz.miroslavpasek.pigeonnavigator.services
 
+import android.content.Context
 import android.util.Log
+import android.net.wifi.WifiManager
 import cz.miroslavpasek.pigeonnavigator.core.platform.coroutines.DispatcherProvider
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import java.net.DatagramPacket
@@ -18,17 +20,21 @@ import kotlinx.coroutines.launch
  * Receives MSFS location packets over UDP and emits [FlightLocation] updates.
  */
 class UdpLocationServiceAndroid(
+    private val context: Context,
     private val listenerConfig: UdpLocationListenerConfig,
     private val dispatcherProvider: DispatcherProvider,
 ) : LocationService {
 
     override fun observeLocationUpdates(): Flow<FlightLocation> = callbackFlow {
+        val multicastLock = acquireMulticastLock()
         val socket = try {
             DatagramSocket(null).apply {
                 reuseAddress = true
+                broadcast = true
                 bind(InetSocketAddress(listenerConfig.ipAddress, listenerConfig.port))
             }
         } catch (error: Exception) {
+            multicastLock?.release()
             Log.e("UdpLocationService", "Failed to bind UDP listener", error)
             close(error)
             return@callbackFlow
@@ -53,6 +59,8 @@ class UdpLocationServiceAndroid(
                             "Received UDP location lat=${location.latitude}, lon=${location.longitude}, alt=${location.altitudeMeters}"
                         )
                         trySend(location)
+                    } else {
+                        Log.i("UdpLocationService", "Ignored UDP payload: $payload")
                     }
                 } catch (_: SocketException) {
                     if (!isActive) {
@@ -67,6 +75,21 @@ class UdpLocationServiceAndroid(
         awaitClose {
             receiveJob.cancel()
             socket.close()
+            multicastLock?.release()
+        }
+    }
+
+    private fun acquireMulticastLock(): WifiManager.MulticastLock? {
+        val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        if (wifiManager == null) {
+            Log.w("UdpLocationService", "WifiManager unavailable; UDP broadcast packets may be filtered")
+            return null
+        }
+
+        return wifiManager.createMulticastLock("PigeonNavigatorUdpLocation").apply {
+            setReferenceCounted(false)
+            acquire()
+            Log.i("UdpLocationService", "Acquired Wi-Fi multicast lock for UDP location packets")
         }
     }
 }

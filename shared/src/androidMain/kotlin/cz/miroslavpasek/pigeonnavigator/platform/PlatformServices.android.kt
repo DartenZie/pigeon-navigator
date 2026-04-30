@@ -31,6 +31,7 @@ actual fun createLocationService(): LocationService {
     )
 
     val udpLocationService = UdpLocationServiceAndroid(
+        context = context,
         listenerConfig = config.udpListener,
         dispatcherProvider = dispatcherProvider,
     )
