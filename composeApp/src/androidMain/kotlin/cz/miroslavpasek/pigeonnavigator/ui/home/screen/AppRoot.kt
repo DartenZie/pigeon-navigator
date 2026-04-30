@@ -106,6 +106,15 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
     val altitudeUnit = appSettings.units.altitude.displayLabel()
     val speed = state.location?.speedMetersPerSecond?.toDisplaySpeed(appSettings.units.speed) ?: 0
     val speedUnit = appSettings.units.speed.displayLabel()
+    val airspaceWarningName = state.airspaceWarning.name
+    val topWarningText = when {
+        state.isTerrainCollisionWithinOneMinute -> "Terrain ahead"
+        !airspaceWarningName.isNullOrBlank() -> {
+            val airspaceName = airspaceWarningName.capitalizedWords()
+            "Entering restricted airspace\n$airspaceName\n${state.airspaceWarning.minutesBeforeEnter} minutes before enter"
+        }
+        else -> null
+    }
     val focusMap: (SearchDockMapFocus) -> Unit = { focus ->
         mapFocus = focus
         mapFocusToken += 1
@@ -124,6 +133,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         altitudeUnit = altitudeUnit,
         speed = speed,
         speedUnit = speedUnit,
+        topWarningText = topWarningText,
         mapDirection = mapDirection,
         isAwayFromUserLocation = isAwayFromUserLocation,
         isSearchDockFullExpanded = isSearchDockFullExpanded,
@@ -182,4 +192,10 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         onAddToRouteClicked = vm::onRouteDestinationAdded,
         onRouteDestinationRemoved = vm::onRouteDestinationRemoved,
     )
+}
+
+private fun String.capitalizedWords(): String {
+    return lowercase()
+        .split(" ")
+        .joinToString(" ") { word -> word.replaceFirstChar { char -> char.uppercase() } }
 }

@@ -31,6 +31,14 @@ class TerrainWarningHelper {
     }
 }
 
+/// Resolves shared projected airspace warning handles for Swift-side consumers.
+class AirspaceWarningHelper {
+    /// Creates a new `AirspaceWarningHandle` from the shared dependency graph.
+    static func resolve() -> AirspaceWarningHandle {
+        return KoinHelper().getAirspaceWarningHandle()
+    }
+}
+
 /// Resolves shared search dock handles for Swift-side consumers.
 class SearchDockHelper {
     /// Creates a new `SearchDockHandle` from the shared dependency graph.

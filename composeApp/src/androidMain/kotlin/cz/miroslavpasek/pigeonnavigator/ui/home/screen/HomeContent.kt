@@ -5,18 +5,28 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
 import cz.miroslavpasek.pigeonnavigator.data.LocationStatus
@@ -56,6 +66,7 @@ fun HomeContent(
     altitudeUnit: String,
     speed: Int,
     speedUnit: String,
+    topWarningText: String?,
     mapDirection: Double,
     isAwayFromUserLocation: Boolean,
     isSearchDockFullExpanded: Boolean,
@@ -106,6 +117,8 @@ fun HomeContent(
             }
 
             Box(modifier = Modifier.fillMaxSize()) {
+                val topWarningOffset = if (topWarningText == null) 0.dp else 116.dp
+
                 NavigateScreen(
                     location = location,
                     terrainHazardSamples = terrainHazardSamples,
@@ -122,13 +135,24 @@ fun HomeContent(
                     modifier = Modifier.fillMaxSize(),
                 )
 
+                if (topWarningText != null) {
+                    TopHazardWarningLabel(
+                        text = topWarningText,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .statusBarsPadding()
+                            .padding(top = 12.dp, start = 20.dp, end = 20.dp)
+                            .zIndex(4f),
+                    )
+                }
+
                 GpsStatusBadge(
                     status = locationStatus,
                     onClick = onLocationStatusBadgeClick,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .statusBarsPadding()
-                        .padding(top = 12.dp),
+                        .padding(top = 12.dp + topWarningOffset),
                 )
 
                 CircularActionButton(
@@ -136,7 +160,7 @@ fun HomeContent(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .statusBarsPadding()
-                        .padding(top = 12.dp, end = 16.dp),
+                        .padding(top = 12.dp + topWarningOffset, end = 16.dp),
                     icon = {
                         Icon(
                             imageVector = Icons.Filled.Settings,
@@ -195,5 +219,35 @@ fun HomeContent(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TopHazardWarningLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(24.dp)
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(
+                elevation = 18.dp,
+                shape = shape,
+                ambientColor = Color.Red.copy(alpha = 0.35f),
+                spotColor = Color.Red.copy(alpha = 0.35f),
+            ),
+        shape = shape,
+        color = Color.Red.copy(alpha = 0.86f),
+        contentColor = Color.White,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 14.dp),
+            textAlign = TextAlign.Center,
+            fontSize = 24.sp,
+            lineHeight = 29.sp,
+            fontWeight = FontWeight.Black,
+        )
     }
 }

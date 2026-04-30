@@ -28,6 +28,7 @@ struct HomeContent: View {
     @ObservedObject var dock: SearchDockViewModelWrapper
     @ObservedObject var mapTapLookup: MapTapLookupViewModelWrapper
     @ObservedObject var terrainWarning: TerrainWarningViewModelWrapper
+    @ObservedObject var airspaceWarning: AirspaceWarningViewModelWrapper
     @ObservedObject var appSettings: AppSettingsViewModelWrapper
     @ObservedObject var locationPermission: LocationPermissionController
 
@@ -145,6 +146,13 @@ struct HomeContent: View {
                     }
 
                 VStack {
+                    if let warningText = topWarningText {
+                        TopHazardWarningLabel(text: warningText)
+                            .padding(.horizontal, 20)
+                            .padding(.top, settingsTopPadding)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
                     ZStack(alignment: .trailing) {
                         HStack(alignment: .center) {
                             Spacer(minLength: 0)
@@ -176,8 +184,9 @@ struct HomeContent: View {
                         }
                     }
                     .frame(height: settingsButtonSize)
-                    .padding(.top, settingsTopPadding)
+                    .padding(.top, topWarningText == nil ? settingsTopPadding : 8)
                     .animation(.spring(response: 0.44, dampingFraction: 0.76), value: locationStatus)
+                    .animation(.spring(response: 0.44, dampingFraction: 0.76), value: topWarningText)
 
                     Spacer(minLength: 0)
                 }
@@ -187,6 +196,18 @@ struct HomeContent: View {
         }
     }
 
+    private var topWarningText: String? {
+        if terrainWarning.isCollisionWithinOneMinute {
+            return "Terrain ahead"
+        }
+
+        guard let name = airspaceWarning.name, !name.isEmpty else {
+            return nil
+        }
+
+        return "Entering restricted airspace\n\(name.capitalized)\n\(airspaceWarning.minutesBeforeEnter) minutes before enter"
+    }
+
     private func addRouteDestination(id: String, title: String, latitude: Double, longitude: Double) {
         dock.addRouteDestination(id: id, title: title, latitude: latitude, longitude: longitude)
         if hudSize == .bar {
@@ -194,5 +215,24 @@ struct HomeContent: View {
                 hudSize = .half
             }
         }
+    }
+}
+
+private struct TopHazardWarningLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 24, weight: .black, design: .rounded))
+            .multilineTextAlignment(.center)
+            .foregroundStyle(.white)
+            .textCase(.none)
+            .lineSpacing(3)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(.red.opacity(0.82), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .modifier(GlassBubbleStyle(shape: RoundedRectangle(cornerRadius: 24, style: .continuous)))
+            .shadow(color: .red.opacity(0.35), radius: 18, x: 0, y: 8)
     }
 }

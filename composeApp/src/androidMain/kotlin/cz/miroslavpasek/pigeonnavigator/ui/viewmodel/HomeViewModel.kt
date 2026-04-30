@@ -2,6 +2,8 @@ package cz.miroslavpasek.pigeonnavigator.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import cz.miroslavpasek.pigeonnavigator.bridge.AirspaceWarningCoordinator
+import cz.miroslavpasek.pigeonnavigator.bridge.AirspaceWarningState
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupCoordinator
 import cz.miroslavpasek.pigeonnavigator.bridge.MapTapLookupState
 import cz.miroslavpasek.pigeonnavigator.data.FlightLocation
@@ -29,6 +31,8 @@ data class HomeUIState(
     val locationStatus: LocationStatus? = null,
     val terrainWarningLevel: TerrainWarningLevel = TerrainWarningLevel.None,
     val terrainDistanceToImpactMeters: Double? = null,
+    val isTerrainCollisionWithinOneMinute: Boolean = false,
+    val airspaceWarning: AirspaceWarningState = AirspaceWarningState(),
     val terrainHazardSamples: List<TerrainHazardSample> = emptyList(),
     val mapTapLookup: MapTapLookupState = MapTapLookupState(),
     val searchDock: SearchDockState = SearchDockState()
@@ -37,6 +41,7 @@ data class HomeUIState(
 class HomeViewModel(
     private val locationService: LocationService,
     private val terrainWarningStore: TerrainWarningStore,
+    private val airspaceWarningCoordinator: AirspaceWarningCoordinator,
     private val mapTapLookupCoordinator: MapTapLookupCoordinator,
     private val searchDockStore: SearchDockStore
 ) : ViewModel() {
@@ -46,10 +51,12 @@ class HomeViewModel(
 
     private var locationJob: Job? = null
     private var terrainStateJob: Job? = null
+    private var airspaceWarningStateJob: Job? = null
     private var searchDockStateJob: Job? = null
 
     init {
         observeTerrainWarnings()
+        observeAirspaceWarnings()
         observeMapTapLookup()
         observeSearchDockState()
         startLocationUpdates()
@@ -153,6 +160,12 @@ class HomeViewModel(
                             speedMetersPerSecond = loc.speedMetersPerSecond.toDouble()
                         )
                     )
+                    airspaceWarningCoordinator.onLocationUpdated(
+                        latitude = loc.latitude,
+                        longitude = loc.longitude,
+                        speedMetersPerSecond = loc.speedMetersPerSecond.toDouble(),
+                        bearingDegrees = loc.bearingDegrees.toDouble()
+                    )
                 }
 
                 _uiState.update {
@@ -179,8 +192,21 @@ class HomeViewModel(
                     it.copy(
                         terrainWarningLevel = warningState.warningLevel,
                         terrainDistanceToImpactMeters = warningState.prediction?.distanceToImpactMeters,
+                        isTerrainCollisionWithinOneMinute = warningState.prediction?.let { prediction ->
+                            prediction.hasConflict && prediction.timeToImpactSeconds?.let { it <= 60.0 } == true
+                        } ?: false,
                         terrainHazardSamples = hazardSamples
                     )
+                }
+            }
+        }
+    }
+
+    private fun observeAirspaceWarnings() {
+        airspaceWarningStateJob = viewModelScope.launch {
+            airspaceWarningCoordinator.state.collect { warningState ->
+                _uiState.update {
+                    it.copy(airspaceWarning = warningState)
                 }
             }
         }
@@ -228,7 +254,9 @@ class HomeViewModel(
         super.onCleared()
         locationJob?.cancel()
         terrainStateJob?.cancel()
+        airspaceWarningStateJob?.cancel()
         searchDockStateJob?.cancel()
+        airspaceWarningCoordinator.close()
         mapTapLookupCoordinator.close()
         searchDockStore.close()
         terrainWarningStore.close()

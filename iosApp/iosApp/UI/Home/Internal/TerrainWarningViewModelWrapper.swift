@@ -10,11 +10,13 @@ final class TerrainWarningViewModelWrapper: ObservableObject {
     private let handle: TerrainWarningHandle
 
     @Published var hazardPoints: [TerrainHazardOverlayPoint] = []
+    @Published var isCollisionWithinOneMinute: Bool = false
 
     init() {
         self.handle = TerrainWarningHelper.resolve()
         handle.startState { [weak self] state in
             guard let self else { return }
+            self.isCollisionWithinOneMinute = state.isCollisionWithinOneMinute
             self.hazardPoints = state.hazardPoints.compactMap { point in
                 guard let severity = TerrainOverlaySeverity(severityTag: point.severity) else {
                     return nil

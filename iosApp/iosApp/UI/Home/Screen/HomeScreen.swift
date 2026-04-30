@@ -26,6 +26,7 @@ struct HomeScreen: View {
 
     @StateObject private var mapTapLookup = MapTapLookupViewModelWrapper()
     @StateObject private var terrainWarning = TerrainWarningViewModelWrapper()
+    @StateObject private var airspaceWarning = AirspaceWarningViewModelWrapper()
     @StateObject private var dock = SearchDockViewModelWrapper()
     @StateObject private var locationPermission = LocationPermissionController()
     @ObservedObject var appSettings: AppSettingsViewModelWrapper
@@ -49,6 +50,7 @@ struct HomeScreen: View {
             dock: dock,
             mapTapLookup: mapTapLookup,
             terrainWarning: terrainWarning,
+            airspaceWarning: airspaceWarning,
             appSettings: appSettings,
             locationPermission: locationPermission,
             hudSize: $hudSize,
@@ -116,6 +118,12 @@ struct HomeScreen: View {
                 latitude: loc.latitude,
                 longitude: loc.longitude,
                 altitudeMeters: loc.altitudeMeters,
+                speedMetersPerSecond: Double(loc.speedMetersPerSecond),
+                bearingDegrees: Double(loc.bearingDegrees)
+            )
+            airspaceWarning.onLocationUpdated(
+                latitude: loc.latitude,
+                longitude: loc.longitude,
                 speedMetersPerSecond: Double(loc.speedMetersPerSecond),
                 bearingDegrees: Double(loc.bearingDegrees)
             )
