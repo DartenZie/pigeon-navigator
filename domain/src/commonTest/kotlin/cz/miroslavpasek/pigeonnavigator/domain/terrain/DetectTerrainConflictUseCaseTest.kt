@@ -36,6 +36,60 @@ class DetectTerrainConflictUseCaseTest {
     }
 
     @Test
+    fun includesTerrainElevationAtCurrentLocation() = runBlocking {
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = FakeTerrainRepository { latitude, _ ->
+                if (latitude == 50.0) 420.0 else 100.0
+            }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0,
+                longitude = 14.0,
+                altitudeMeters = 1_000.0,
+                speedMetersPerSecond = 40.0,
+                bearingDegrees = 0.0
+            )
+        )
+
+        val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
+        assertEquals(420.0, prediction.currentTerrainElevationMeters)
+    }
+
+    @Test
+    fun includesCurrentTerrainFailureWhenOnlyAheadSamplesAreAvailable() = runBlocking {
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = object : TerrainRepository {
+                override suspend fun sampleTerrainElevationMeters(
+                    latitude: Double,
+                    longitude: Double
+                ): AppResult<Double, Failure> {
+                    return if (latitude == 50.0 && longitude == 14.0) {
+                        AppResult.Failure(Failure.OutOfCoverage)
+                    } else {
+                        AppResult.Success(100.0)
+                    }
+                }
+            }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0,
+                longitude = 14.0,
+                altitudeMeters = 1_000.0,
+                speedMetersPerSecond = 40.0,
+                bearingDegrees = 0.0
+            )
+        )
+
+        val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
+        assertEquals(null, prediction.currentTerrainElevationMeters)
+        assertEquals(Failure.OutOfCoverage, prediction.currentTerrainFailure)
+    }
+
+    @Test
     fun returnsOutOfCoverageWhenNoSampleIsAvailable() = runBlocking {
         val useCase = DetectTerrainConflictUseCase(
             terrainRepository = object : TerrainRepository {
@@ -61,6 +115,32 @@ class DetectTerrainConflictUseCaseTest {
     }
 
     @Test
+    fun preservesCurrentTerrainDiagnosticWhenNoSampleIsAvailable() = runBlocking {
+        val diagnosticFailure = Failure.DataUnavailableReason("PNG_DECODE")
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = object : TerrainRepository {
+                override suspend fun sampleTerrainElevationMeters(
+                    latitude: Double,
+                    longitude: Double
+                ): AppResult<Double, Failure> = AppResult.Failure(diagnosticFailure)
+            }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0000,
+                longitude = 14.0000,
+                altitudeMeters = 1500.0,
+                speedMetersPerSecond = 50.0,
+                bearingDegrees = 90.0
+            )
+        )
+
+        val error = assertIs<AppResult.Failure<Failure>>(result).error
+        assertEquals(diagnosticFailure, error)
+    }
+
+    @Test
     fun returnsNoConflictWhenClearanceIsSafe() = runBlocking {
         val useCase = DetectTerrainConflictUseCase(
             terrainRepository = FakeTerrainRepository { _, _ -> 100.0 }
@@ -79,6 +159,33 @@ class DetectTerrainConflictUseCaseTest {
         val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
         assertFalse(prediction.hasConflict)
         assertEquals(TerrainWarningLevel.None, prediction.warningLevel)
+    }
+
+    @Test
+    fun returnsWarningWhenTerrainViolatesClearanceMarginBelowAmslAltitude() = runBlocking {
+        val useCase = DetectTerrainConflictUseCase(
+            terrainRepository = FakeTerrainRepository { _, _ -> 850.0 }
+        )
+
+        val result = useCase(
+            snapshot = AircraftSnapshot(
+                latitude = 50.0,
+                longitude = 14.0,
+                altitudeMeters = 1_000.0,
+                speedMetersPerSecond = 40.0,
+                bearingDegrees = 0.0
+            ),
+            parameters = TerrainConflictParameters(
+                safetyMarginMeters = 100.0,
+                warningClearanceMeters = 60.0,
+                cautionClearanceMeters = 150.0
+            )
+        )
+
+        val prediction = assertIs<AppResult.Success<TerrainConflictPrediction>>(result).value
+        assertFalse(prediction.hasConflict)
+        assertEquals(TerrainWarningLevel.Warning, prediction.warningLevel)
+        assertEquals(50.0, prediction.minClearanceMeters)
     }
 
     @Test

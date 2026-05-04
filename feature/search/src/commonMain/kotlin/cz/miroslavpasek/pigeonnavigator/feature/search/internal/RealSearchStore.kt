@@ -88,7 +88,8 @@ internal class RealSearchStore(
             }
 
             Failure.OutOfCoverage,
-            Failure.DataUnavailable -> {
+            Failure.DataUnavailable,
+            is Failure.DataUnavailableReason -> {
                 val message = "Data unavailable"
                 reduce(SearchIntent.SearchFailed(message))
                 effectChannel.trySend(SearchEffect.ShowUnexpectedError(message))

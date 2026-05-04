@@ -1,5 +1,7 @@
 package cz.miroslavpasek.pigeonnavigator.domain.terrain
 
+import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
+
 /**
  * Classifies terrain conflict severity derived from sampled clearance and impact metrics.
  */
@@ -42,6 +44,8 @@ data class TerrainHazardSample(
  *
  * @property hasConflict True when at least one sampled ray intersects terrain inside look-ahead distance.
  * @property warningLevel Severity derived from clearance and time-to-impact thresholds.
+ * @property currentTerrainElevationMeters Terrain elevation at the aircraft's current coordinate, or `null` when unavailable.
+ * @property currentTerrainFailure Failure from sampling the aircraft's current coordinate, or `null` when available.
  * @property minClearanceMeters Lowest sampled clearance after applying the configured safety margin.
  * @property distanceToImpactMeters Distance to the nearest terrain intersection, or `null` when no impact is predicted.
  * @property timeToImpactSeconds Time to nearest impact using current speed, or `null` when not computable.
@@ -50,6 +54,8 @@ data class TerrainHazardSample(
 data class TerrainConflictPrediction(
     val hasConflict: Boolean,
     val warningLevel: TerrainWarningLevel,
+    val currentTerrainElevationMeters: Double? = null,
+    val currentTerrainFailure: Failure? = null,
     val minClearanceMeters: Double,
     val distanceToImpactMeters: Double?,
     val timeToImpactSeconds: Double?,

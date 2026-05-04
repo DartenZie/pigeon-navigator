@@ -37,7 +37,10 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
      * Returns terrain elevation at [latitude]/[longitude], or a mapped [Failure] when unavailable.
      */
     override suspend fun sampleElevationMeters(latitude: Double, longitude: Double): AppResult<Double, Failure> {
-        val archive = getOrParseArchive() ?: return AppResult.Failure(Failure.DataUnavailable)
+        val archive = when (val result = getOrParseArchive()) {
+            is AppResult.Success -> result.value
+            is AppResult.Failure -> return result
+        }
         val coordinate = TerrainMath.tileCoordinate(latitude = latitude, longitude = longitude, zoom = archive.maxZoom)
         val tileId = TerrainMath.tileId(archive.maxZoom, coordinate.xTile, coordinate.yTile)
         val entry = archive.directory.findEntry(tileId) ?: return AppResult.Failure(Failure.OutOfCoverage)
@@ -49,11 +52,16 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
             val dataStart = archive.tileDataOffset + entry.offset
             val dataEnd = dataStart + entry.length
             if (dataStart < 0 || dataEnd > archive.archiveBytes.size || dataStart >= dataEnd) {
-                return AppResult.Failure(Failure.DataUnavailable)
+                return diagnosticFailure("TILE_RANGE")
             }
 
-            val pngBytes = archive.archiveBytes.copyOfRange(dataStart, dataEnd)
-            val decodedPixels = decodeTilePixels(pngBytes) ?: return AppResult.Failure(Failure.DataUnavailable)
+            val rawTileBytes = archive.archiveBytes.copyOfRange(dataStart, dataEnd)
+            val pngBytes = when (archive.tileCompression) {
+                TILE_COMPRESSION_NONE -> rawTileBytes
+                TILE_COMPRESSION_GZIP -> gunzip(rawTileBytes) ?: return diagnosticFailure("TILE_GZIP")
+                else -> return diagnosticFailure("TILE_COMP_${archive.tileCompression}")
+            }
+            val decodedPixels = decodeTilePixels(pngBytes) ?: return diagnosticFailure("PNG_DECODE")
             synchronized(decodedTileCache) {
                 decodedTileCache[cacheKey] = decodedPixels
             }
@@ -62,7 +70,7 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
 
         val pixelIndex = coordinate.pixelY * TILE_SIZE + coordinate.pixelX
         if (pixelIndex !in tilePixels.indices) {
-            return AppResult.Failure(Failure.DataUnavailable)
+            return diagnosticFailure("PIXEL_INDEX")
         }
 
         val pixel = tilePixels[pixelIndex]
@@ -75,29 +83,32 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
         )
     }
 
-    private suspend fun getOrParseArchive(): ParsedPmtilesArchive? {
-        parsedArchive?.let { return it }
+    private suspend fun getOrParseArchive(): AppResult<ParsedPmtilesArchive, Failure> {
+        parsedArchive?.let { return AppResult.Success(it) }
 
         val activePackage = when (val result = getActiveMapPackageUseCase()) {
             is AppResult.Success -> result.value
-            is AppResult.Failure -> return null
+            is AppResult.Failure -> return diagnosticFailure("NO_ACTIVE")
         }
 
         val archiveBytes = runCatching {
             File(activePackage.terrainPmtilesAbsolutePath).readBytes()
-        }.getOrNull() ?: return null
+        }.getOrNull() ?: return diagnosticFailure("FILE_READ")
 
         return synchronized(this) {
-            parsedArchive?.let { return it }
-            val parsed = parseArchive(archiveBytes) ?: return null
+            parsedArchive?.let { return AppResult.Success(it) }
+            val parsed = when (val result = parseArchive(archiveBytes)) {
+                is AppResult.Success -> result.value
+                is AppResult.Failure -> return result
+            }
             parsedArchive = parsed
-            parsed
+            AppResult.Success(parsed)
         }
     }
 
-    private fun parseArchive(bytes: ByteArray): ParsedPmtilesArchive? {
+    private fun parseArchive(bytes: ByteArray): AppResult<ParsedPmtilesArchive, Failure> {
         if (bytes.size < PMTILES_HEADER_SIZE || !bytes.copyOfRange(0, 7).contentEquals(PM_TILES_MAGIC)) {
-            return null
+            return diagnosticFailure("BAD_HEADER")
         }
 
         val input = DataInputStream(ByteArrayInputStream(bytes, MAGIC_AND_VERSION_SIZE, PMTILES_HEADER_SIZE - MAGIC_AND_VERSION_SIZE))
@@ -112,35 +123,46 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
         input.readLittleEndianLong()
         input.readLittleEndianLong()
         input.readLittleEndianLong()
-        input.readLittleEndianLong()
         input.readUnsignedByte()
         val internalCompression = input.readUnsignedByte()
-        input.readUnsignedByte()
+        val tileCompression = input.readUnsignedByte()
         input.readUnsignedByte()
         input.readUnsignedByte()
         val maxZoom = input.readUnsignedByte()
 
         if (rootDirOffset < 0 || rootDirLength <= 0 || rootDirOffset + rootDirLength > bytes.size) {
-            return null
+            return diagnosticFailure("ROOT_RANGE")
         }
 
         val rootDirBytes = bytes.copyOfRange(rootDirOffset, rootDirOffset + rootDirLength)
         val directoryBytes = when (internalCompression) {
             INTERNAL_COMPRESSION_NONE -> rootDirBytes
-            INTERNAL_COMPRESSION_GZIP -> runCatching {
-                GZIPInputStream(ByteArrayInputStream(rootDirBytes)).use { it.readBytes() }
-            }.getOrNull() ?: return null
+            INTERNAL_COMPRESSION_GZIP -> gunzip(rootDirBytes) ?: return diagnosticFailure("ROOT_GZIP")
 
-            else -> return null
+            else -> return diagnosticFailure("ROOT_COMP_$internalCompression")
         }
 
-        return ParsedPmtilesArchive(
-            archiveBytes = bytes,
-            directory = PmtilesDirectory.decode(directoryBytes),
-            tileDataOffset = tileDataOffset,
-            maxZoom = maxZoom
+        return runCatching {
+            ParsedPmtilesArchive(
+                archiveBytes = bytes,
+                directory = PmtilesDirectory.decode(directoryBytes),
+                tileDataOffset = tileDataOffset,
+                tileCompression = tileCompression,
+                maxZoom = maxZoom
+            )
+        }.fold(
+            onSuccess = { AppResult.Success(it) },
+            onFailure = { diagnosticFailure("DIR_DECODE") }
         )
     }
+
+    private fun diagnosticFailure(code: String): AppResult.Failure<Failure> {
+        return AppResult.Failure(Failure.DataUnavailableReason(code))
+    }
+
+    private fun gunzip(bytes: ByteArray): ByteArray? = runCatching {
+        GZIPInputStream(ByteArrayInputStream(bytes)).use { it.readBytes() }
+    }.getOrNull()
 
     private fun decodeTilePixels(tileBytes: ByteArray): IntArray? {
         val bitmap = BitmapFactory.decodeByteArray(tileBytes, 0, tileBytes.size) ?: return null
@@ -168,6 +190,8 @@ private class AndroidTerrariumDemSampler : TerrariumDemSampler {
 
         const val INTERNAL_COMPRESSION_NONE = 1
         const val INTERNAL_COMPRESSION_GZIP = 2
+        const val TILE_COMPRESSION_NONE = 1
+        const val TILE_COMPRESSION_GZIP = 2
     }
 }
 
@@ -175,6 +199,7 @@ private data class ParsedPmtilesArchive(
     val archiveBytes: ByteArray,
     val directory: PmtilesDirectory,
     val tileDataOffset: Int,
+    val tileCompression: Int,
     val maxZoom: Int
 )
 

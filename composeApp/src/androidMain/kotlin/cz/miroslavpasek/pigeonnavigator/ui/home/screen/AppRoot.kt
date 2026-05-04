@@ -111,7 +111,7 @@ fun AppRoot(vm: HomeViewModel = koinViewModel()) {
         state.isTerrainCollisionWithinOneMinute -> "Terrain ahead"
         !airspaceWarningName.isNullOrBlank() -> {
             val airspaceName = airspaceWarningName.capitalizedWords()
-            "Entering restricted airspace\n$airspaceName\n${state.airspaceWarning.minutesBeforeEnter} minutes before enter"
+            "Entering restricted airspace: $airspaceName\n${state.airspaceWarning.minutesBeforeEnter} minutes before enter"
         }
         else -> null
     }

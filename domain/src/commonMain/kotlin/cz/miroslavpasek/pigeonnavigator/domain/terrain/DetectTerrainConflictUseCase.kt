@@ -42,7 +42,42 @@ class DetectTerrainConflictUseCase(
         var nearestImpactDistanceMeters: Double? = null
         var validSampleCount = 0
         var outOfCoverageCount = 0
+        var currentTerrainElevationMeters: Double? = null
+        var currentTerrainFailure: Failure? = null
         val hazardSamples = mutableListOf<TerrainHazardSample>()
+
+        when (val terrainSample = terrainRepository.sampleTerrainElevationMeters(snapshot.latitude, snapshot.longitude)) {
+            is AppResult.Success -> {
+                validSampleCount += 1
+                currentTerrainElevationMeters = terrainSample.value
+
+                val terrainDeltaMeters = terrainSample.value - snapshot.altitudeMeters
+                val clearanceMeters = snapshot.altitudeMeters - terrainSample.value - parameters.safetyMarginMeters
+                minClearanceMeters = min(minClearanceMeters, clearanceMeters)
+
+                if (terrainDeltaMeters >= 0.0) {
+                    hazardSamples += TerrainHazardSample(
+                        latitude = snapshot.latitude,
+                        longitude = snapshot.longitude,
+                        level = TerrainHazardLevel.Conflict
+                    )
+                    nearestImpactDistanceMeters = minPositive(nearestImpactDistanceMeters, 0.0)
+                } else if (terrainDeltaMeters >= -parameters.nearConflictVerticalBandMeters) {
+                    hazardSamples += TerrainHazardSample(
+                        latitude = snapshot.latitude,
+                        longitude = snapshot.longitude,
+                        level = TerrainHazardLevel.NearConflict
+                    )
+                }
+            }
+
+            is AppResult.Failure -> {
+                currentTerrainFailure = terrainSample.error
+                if (terrainSample.error == Failure.OutOfCoverage) {
+                    outOfCoverageCount += 1
+                }
+            }
+        }
 
         for (bearing in bearings) {
             var distanceMeters = 0.0
@@ -100,7 +135,7 @@ class DetectTerrainConflictUseCase(
             return if (outOfCoverageCount > 0) {
                 AppResult.Failure(Failure.OutOfCoverage)
             } else {
-                AppResult.Failure(Failure.DataUnavailable)
+                AppResult.Failure(currentTerrainFailure ?: Failure.DataUnavailable)
             }
         }
 
@@ -109,18 +144,20 @@ class DetectTerrainConflictUseCase(
             ?.div(snapshot.speedMetersPerSecond)
 
         val warningLevel = when {
-            nearestImpactDistanceMeters == null -> TerrainWarningLevel.None
             minClearanceMeters <= parameters.warningClearanceMeters -> TerrainWarningLevel.Warning
             timeToImpactSeconds != null && timeToImpactSeconds <= parameters.warningTimeToImpactSeconds -> TerrainWarningLevel.Warning
             minClearanceMeters <= parameters.cautionClearanceMeters -> TerrainWarningLevel.Caution
             timeToImpactSeconds != null && timeToImpactSeconds <= parameters.cautionTimeToImpactSeconds -> TerrainWarningLevel.Caution
-            else -> TerrainWarningLevel.Info
+            nearestImpactDistanceMeters != null -> TerrainWarningLevel.Info
+            else -> TerrainWarningLevel.None
         }
 
         return AppResult.Success(
             TerrainConflictPrediction(
                 hasConflict = nearestImpactDistanceMeters != null,
                 warningLevel = warningLevel,
+                currentTerrainElevationMeters = currentTerrainElevationMeters,
+                currentTerrainFailure = currentTerrainFailure,
                 minClearanceMeters = minClearanceMeters,
                 distanceToImpactMeters = nearestImpactDistanceMeters,
                 timeToImpactSeconds = timeToImpactSeconds,

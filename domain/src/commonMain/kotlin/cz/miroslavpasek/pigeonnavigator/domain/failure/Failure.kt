@@ -20,6 +20,11 @@ sealed interface Failure {
     data object DataUnavailable : Failure
 
     /**
+     * Required data source is unavailable with a diagnostic code for debugging.
+     */
+    data class DataUnavailableReason(val code: String) : Failure
+
+    /**
      * Unclassified domain failure.
      */
     data object Unexpected : Failure

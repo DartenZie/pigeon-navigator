@@ -27,6 +27,7 @@ class TerrainWarningReducer {
                     prediction = intent.prediction,
                     warningLevel = intent.prediction.warningLevel,
                     isComputing = false,
+                    lastFailure = null,
                     lastErrorMessage = null
                 )
             }
@@ -35,6 +36,7 @@ class TerrainWarningReducer {
                 state.copy(
                     isComputing = false,
                     warningLevel = TerrainWarningLevel.None,
+                    lastFailure = intent.failure,
                     lastErrorMessage = intent.failure.toMessage()
                 )
             }
@@ -47,6 +49,7 @@ class TerrainWarningReducer {
     private fun Failure.toMessage(): String = when (this) {
         Failure.OutOfCoverage -> "Out of terrain coverage"
         Failure.DataUnavailable -> "Terrain data unavailable"
+        is Failure.DataUnavailableReason -> "Terrain data unavailable"
         is Failure.Validation -> message
         Failure.Unexpected -> "Unexpected error"
     }

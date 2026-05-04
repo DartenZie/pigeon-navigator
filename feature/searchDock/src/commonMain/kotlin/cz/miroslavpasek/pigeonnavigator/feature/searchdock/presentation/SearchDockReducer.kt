@@ -207,7 +207,8 @@ class SearchDockReducer(
 
     private fun Failure.toMessage(): String = when (this) {
         Failure.OutOfCoverage,
-        Failure.DataUnavailable -> "Data unavailable"
+        Failure.DataUnavailable,
+        is Failure.DataUnavailableReason -> "Data unavailable"
 
         is Failure.Validation -> message
         Failure.Unexpected -> "Unexpected error"

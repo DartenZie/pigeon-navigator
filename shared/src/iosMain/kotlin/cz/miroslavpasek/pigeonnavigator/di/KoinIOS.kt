@@ -425,7 +425,10 @@ class AirspaceWarningHandle(
             return
         }
 
-        val warningSeconds = appSettingsRepository.settings.value.warning.timeToCollisionWarningSeconds
+        val warningSeconds = maxOf(
+            MIN_AIRSPACE_WARNING_LOOKAHEAD_SECONDS,
+            appSettingsRepository.settings.value.warning.timeToCollisionWarningSeconds
+        )
         queryJob = scope.launch {
             val warning = withContext(dispatcherProvider.io) {
                 findRestrictedAirspaceAhead(
@@ -465,12 +468,12 @@ class AirspaceWarningHandle(
                 latitude = projected.latitude,
                 longitude = projected.longitude
             )
-            val restricted = (result as? AppResult.Success)
+            val warningAirspace = (result as? AppResult.Success)
                 ?.value
-                ?.firstOrNull { it.isRestrictedAirspace() }
-            if (restricted != null) {
+                ?.firstOrNull { it.isWarningAirspace() }
+            if (warningAirspace != null) {
                 return AirspaceWarningViewState(
-                    name = restricted.name,
+                    name = warningAirspace.name,
                     minutesBeforeEnter = maxOf(1, ceil(secondsAhead / 60.0).toInt())
                 )
             }
@@ -480,9 +483,12 @@ class AirspaceWarningHandle(
         return null
     }
 
-    private fun Airspace.isRestrictedAirspace(): Boolean {
-        return kind.contains("restricted", ignoreCase = true) ||
-            name.contains("restricted", ignoreCase = true)
+    private fun Airspace.isWarningAirspace(): Boolean {
+        val kindTokens = kind.uppercase().split(AIRSPACE_KIND_TOKEN_SEPARATOR).filter { it.isNotBlank() }
+        return kindTokens.any { it in WARNING_AIRSPACE_KIND_TOKENS } ||
+            AIRSPACE_WARNING_TEXT_MARKERS.any { marker ->
+                kind.contains(marker, ignoreCase = true) || name.contains(marker, ignoreCase = true)
+            }
     }
 
     private fun projectCoordinate(
@@ -507,6 +513,21 @@ class AirspaceWarningHandle(
     private companion object {
         const val EARTH_RADIUS_METERS = 6_371_000.0
         const val MIN_WARNING_SPEED_METERS_PER_SECOND = 1.0
+        const val MIN_AIRSPACE_WARNING_LOOKAHEAD_SECONDS = 300
+        val AIRSPACE_KIND_TOKEN_SEPARATOR = Regex("[^A-Z0-9]+")
+        val WARNING_AIRSPACE_KIND_TOKENS = setOf(
+            "CTR",
+            "TMA",
+            "CTA",
+            "ATZ",
+            "RMZ",
+            "TRA",
+            "TSA",
+            "R",
+            "D",
+            "P"
+        )
+        val AIRSPACE_WARNING_TEXT_MARKERS = listOf("restricted", "prohibited", "danger")
         const val MIN_PROJECTION_STEP_SECONDS = 5
         const val PROJECTION_STEP_SECONDS = 15
     }
