@@ -1,39 +1,96 @@
-This is a Kotlin Multiplatform project targeting Android, iOS.
+# PigeonNavigator
 
-* [/composeApp](./composeApp/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./composeApp/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./composeApp/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./composeApp/src/jvmMain/kotlin)
-    folder is the appropriate location.
+Offline-first aviation navigation app built with Kotlin Multiplatform, targeting **Android** (Jetpack Compose) and **iOS** (SwiftUI).
 
-* [/iosApp](./iosApp/iosApp) contains iOS applications. Even if you’re sharing your UI with Compose Multiplatform,
-  you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
+## Features
 
-* [/shared](./shared/src) is for the code that will be shared between all targets in the project.
-  The most important subfolder is [commonMain](./shared/src/commonMain/kotlin). If preferred, you
-  can add code to the platform-specific folders here too.
+- **Moving map** — MapLibre GL with offline PMTiles-based vector tiles and a custom aviation style
+- **Aviation data overlay** — airports, navaids (VOR/NDB), and airspace boundaries from bundled `.ofpkg` packages
+- **Terrain warning (TAWS-like)** — forward-looking terrain conflict detection with configurable warning levels and hazard overlay
+- **Nearby search** — airports, navaids, and containing airspaces near current position
+- **Text search** — search aviation features by name or identifier
+- **Route planning & navigation** — waypoint-based route with distance/ETA tracking
+- **Map tap lookup** — tap the map to identify nearby aviation features
+- **HUD cluster** — speed, altitude, GPS status
+- **Configurable units** — NM/km/mi, ft/m, kts/kph/mph
+- **Dual location sources** — device GPS or UDP stream (MSFS flight simulator or other flight sim integration)
 
-### Build and Run Android Application
+## Tech Stack
 
-To build and run the development version of the Android app, use the run configuration from the run widget
-in your IDE’s toolbar or build it directly from the terminal:
-- on macOS/Linux
-  ```shell
-  ./gradlew :composeApp:assembleDebug
-  ```
-- on Windows
-  ```shell
-  .\gradlew.bat :composeApp:assembleDebug
-  ```
+| Layer | Technology |
+|---|---|
+| Language | Kotlin 2.3 (Multiplatform) |
+| Android UI | Jetpack Compose / Material 3 |
+| iOS UI | SwiftUI |
+| Maps | MapLibre GL (Android SDK 12.3, MapLibre Swift) |
+| Tiles & Terrain | PMTiles (offline), Terrarium DEM |
+| Database | SQLDelight 2.0 |
+| DI | Koin 4.2 |
+| Serialization | kotlinx-serialization |
+| Architecture | MVI / Unidirectional Data Flow |
 
-### Build and Run iOS Application
+## Project Structure
 
-To build and run the development version of the iOS app, use the run configuration from the run widget
-in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and run it from there.
+```
+core/
+  util/             Pure Kotlin utilities (AppResult monad, etc.)
+  platform/         expect/actual platform primitives (dispatchers, settings store)
+  database/         SQLDelight driver factory
 
----
+domain/             Entities, use-cases, repository interfaces, Failure model
+                    Pure Kotlin — no framework dependencies
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+data/
+  aviationData/     Aviation repo impl, OFPKG installer, SQLDelight queries
+  terrainData/      Terrain repo impl, DEM sampler, PMTiles reader
+  searchData/       Search repo impl, in-memory data source
+  settingsData/     Settings repo impl, key-value persistence
+
+feature/
+  searchFeature/          Text search (State/Intent/Effect/Reducer/Store)
+  searchDockFeature/      Search dock UI state machine
+  terrainWarningFeature/  Terrain warning state machine
+
+shared/             Cross-cutting wiring: location service, map style, Koin modules
+
+composeApp/         Android app (Compose UI, MapLibre integration)
+iosApp/             iOS app (SwiftUI, MapLibre integration)
+```
+
+Dependencies flow inward: `app → feature → domain → core`. Data modules depend on `domain` + `core` only.
+
+## Build
+
+**Prerequisites:** JDK 17+, Android SDK 36, Xcode 16+ (for iOS)
+
+### Android
+
+```shell
+./gradlew :composeApp:assembleDebug
+```
+
+Or use the run configuration in Android Studio / Fleet.
+
+### iOS
+
+Open `iosApp/` in Xcode and run, or use the KMP run configuration in Fleet.
+
+## Architecture
+
+Each feature follows the **MVI** pattern with explicit types:
+
+- `State` — immutable data class representing full UI state
+- `Intent` — sealed interface of user/system inputs
+- `Effect` — sealed interface of one-shot side effects (navigation, alerts)
+- `Reducer` — pure function `(State, Intent) → State`
+- `Store` — coroutine scope that runs use-cases and emits `StateFlow<State>` + `Flow<Effect>`
+
+Reducers contain no IO. Side effects run in the Store or domain use-cases. Platform APIs are behind interfaces injected via Koin.
+
+## Aviation Data
+
+Aviation data is distributed as `.ofpkg` packages — ZIP archives containing a SQLite database and PMTiles tile archive. You can create `.ofpkg` packages using the Go tool in `data-pipeline/`. A Czech Republic package (`cz.ofpkg`) is bundled in `map-assets/`.
+
+## License
+
+School project — no license specified.

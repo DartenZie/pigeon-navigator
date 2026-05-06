@@ -1,0 +1,185 @@
+# Local configuration for ofmx-parser.
+# Precedence: built-in defaults < this file < explicit CLI flags.
+# Use with: --config configs/parser.local.yaml
+
+ofmx:
+  # Path to the OFMX input file used by XML and/or map export.
+  # Leave empty when running terrain-only mode.
+  input: "cz.ofmx"
+
+  # Maximum chord length in meters used when densifying OFMX arc/circle borders.
+  arc_max_chord_m: 750
+
+xml:
+  # Output XML file path. Leave empty to disable XML export.
+  output: "dist/out.xml"
+
+  # Optional parse report JSON output path.
+  report: ""
+
+bundle:
+  # Output .ofpkg bundle path. Leave empty to disable bundle export.
+  output: "dist/cz.ofpkg"
+
+map:
+  # OSM PBF input used by tilemaker.
+  pbf_input: "cz.osm.pbf"
+
+  # Output PMTiles path. Leave empty to disable map export.
+  pmtiles_output: "dist/out.pmtiles"
+
+  # Optional directory where generated GeoJSON layers are copied for debugging.
+  geojson_output_dir: ""
+
+  # Optional working directory for generated runtime files.
+  # Leave empty to use an auto-created temporary directory.
+  temp_dir: ""
+
+  tilemaker:
+    # Tilemaker executable path or PATH lookup name.
+    bin: "tilemaker"
+
+    # Optional custom tilemaker config override.
+    # Leave empty to use the generated runtime config.
+    config: ""
+
+    # Optional custom tilemaker process.lua override.
+    # Leave empty to use the bundled default template.
+    process: ""
+
+terrain:
+  # Directory containing Copernicus DEM source files (*.tif/*.tiff).
+  source_dir: "copdem"
+
+  # Optional checksum file for source integrity validation.
+  # Expected format: "<sha256> <filename>".
+  source_checksums: ""
+
+  # AOI bounding box in WGS84: minLon,minLat,maxLon,maxLat.
+  aoi_bbox: "12.09,48.55,18.87,51.06"
+
+  # Terrain source/version identifier written into manifest and report output.
+  version: "1"
+
+  # Output PMTiles path. Leave empty to disable terrain export.
+  pmtiles_output: "dist/terrain.pmtiles"
+
+  # Optional terrain manifest output path.
+  # Leave empty to write terrain.manifest.json next to the PMTiles output.
+  manifest_output: ""
+
+  # Optional terrain build report JSON output path.
+  build_report_output: ""
+
+  # Optional stable terrain build working directory.
+  # Leave empty to use an auto-created temporary directory.
+  build_dir: ""
+
+  # Terrain tile pyramid minimum zoom.
+  min_zoom: 5
+
+  # Terrain tile pyramid maximum zoom.
+  max_zoom: 10
+
+  # Terrain tile size. Valid values: 256 or 512.
+  tile_size: 256
+
+  # Terrain tile encoding label written into manifest output.
+  encoding: "terrarium"
+
+  # Terrain vertical datum label written into manifest output.
+  vertical_datum: "EGM2008"
+
+  # Terrain manifest schema version.
+  schema_version: "1.0.0"
+
+  # Maximum pixel distance for deterministic nodata fill.
+  nodata_fill_distance: 100
+
+  # Smoothing iterations for nodata fill.
+  nodata_fill_smoothing: 0
+
+  # Maximum allowed edge seam pixel delta.
+  seam_threshold: 128
+
+  # Maximum allowed RMSE for control-point elevation checks, in meters.
+  rmse_threshold_m: 25.0
+
+  # Optional CSV with control points in lon,lat,elev_m format.
+  control_points: ""
+
+  # Optional deterministic build timestamp in RFC3339 format.
+  # Leave empty to use the current UTC time.
+  build_timestamp: ""
+
+  # Number of gdal2tiles.py worker processes.
+  # 0 means use all available CPUs.
+  gdal2tiles_processes: 0
+
+  # Elevation quantization step in meters before Terrarium encoding.
+  # 0 disables quantization.
+  elevation_quantization_m: 1.0
+
+  # Optional GeoJSON/Shapefile polygon used to clip tiles outside the AOI shape.
+  clip_polygon: ""
+
+  # Optional country-name filter used when clip_polygon points at a border
+  # line file that needs to be converted into a polygon first.
+  clip_country_name: ""
+
+  toolchain:
+    # gdalbuildvrt binary path or PATH lookup name.
+    gdalbuildvrt_bin: "gdalbuildvrt"
+
+    # gdal_fillnodata.py binary path or PATH lookup name.
+    gdal_fillnodata_bin: "gdal_fillnodata.py"
+
+    # gdalwarp binary path or PATH lookup name.
+    gdalwarp_bin: "gdalwarp"
+
+    # gdal_translate binary path or PATH lookup name.
+    gdal_translate_bin: "gdal_translate"
+
+    # gdaladdo binary path or PATH lookup name.
+    gdaladdo_bin: "gdaladdo"
+
+    # gdal_calc.py binary path or PATH lookup name.
+    gdal_calc_bin: "gdal_calc.py"
+
+    # gdal_merge.py binary path or PATH lookup name.
+    gdal_merge_bin: "gdal_merge.py"
+
+    # gdal2tiles.py binary path or PATH lookup name.
+    gdal2tiles_bin: "gdal2tiles.py"
+
+    # gdaldem binary path or PATH lookup name.
+    gdaldem_bin: "gdaldem"
+
+    # gdalinfo binary path or PATH lookup name.
+    gdalinfo_bin: "gdalinfo"
+
+    # gdallocationinfo binary path or PATH lookup name.
+    gdallocationinfo_bin: "gdallocationinfo"
+
+    # pmtiles binary path or PATH lookup name.
+    pmtiles_bin: "pmtiles"
+
+transform:
+  airspace:
+    # Maximum allowed lower airspace limit in flight levels.
+    # Values below 95 are invalid.
+    max_altitude_fl: 95
+
+    # Replacement allowlist for exported OFMX Ase/codeType values.
+    # Values are normalized to uppercase and duplicates are removed.
+    allowed_types:
+      - ATZ
+      - CTR
+      - TMA
+      - D
+      - P
+      - PR
+      - R
+      - TRA
+      - TRA_GA
+      - TSA

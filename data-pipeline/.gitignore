@@ -1,0 +1,6 @@
+dist/
+tmp/
+debug/
+cz.ofmx
+cz.osm.pbf
+cz.xml
