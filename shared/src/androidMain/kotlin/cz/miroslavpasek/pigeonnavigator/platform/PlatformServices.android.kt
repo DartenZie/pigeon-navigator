@@ -43,7 +43,7 @@ actual fun createLocationService(): LocationService {
     val xplaneUdpLocationService = UdpLocationServiceAndroid(
         context = context,
         listenerConfig = config.udpListener,
-        parser = XPlaneUdpLocationParser,
+        parser = XPlaneUdpLocationParser(),
         dispatcherProvider = dispatcherProvider,
     )
 

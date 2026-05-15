@@ -32,7 +32,7 @@ actual fun createLocationService(): LocationService {
     )
     val xplaneUdpLocationService = UdpLocationServiceIOS(
         listenerConfig = config.udpListener,
-        parser = XPlaneUdpLocationParser,
+        parser = XPlaneUdpLocationParser(),
         dispatcherProvider = dispatcherProvider,
     )
 
