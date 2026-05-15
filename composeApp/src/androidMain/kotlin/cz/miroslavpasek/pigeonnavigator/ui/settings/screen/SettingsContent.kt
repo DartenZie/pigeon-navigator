@@ -20,9 +20,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import cz.miroslavpasek.pigeonnavigator.ui.common.theme.AppSpacing
+import cz.miroslavpasek.pigeonnavigator.ui.settings.section.LocationSection
 import cz.miroslavpasek.pigeonnavigator.ui.settings.section.UnitsSection
 import cz.miroslavpasek.pigeonnavigator.ui.settings.section.WarningSection
 
@@ -40,6 +42,7 @@ fun SettingsContent(
     onClose: () -> Unit,
     onUnitsChange: (UnitPreferences) -> Unit,
     onWarningChange: (WarningPreferences) -> Unit,
+    onLocationChange: (LocationPreferences) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(modifier = modifier.fillMaxSize()) {
@@ -70,6 +73,13 @@ fun SettingsContent(
                 WarningSection(
                     warning = settings.warning,
                     onWarningChange = onWarningChange,
+                )
+
+                HorizontalDivider()
+
+                LocationSection(
+                    location = settings.location,
+                    onLocationChange = onLocationChange,
                 )
             }
         }

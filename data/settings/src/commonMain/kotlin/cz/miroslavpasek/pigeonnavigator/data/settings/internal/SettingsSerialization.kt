@@ -2,7 +2,9 @@ package cz.miroslavpasek.pigeonnavigator.data.settings.internal
 
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AltitudeUnit
 import cz.miroslavpasek.pigeonnavigator.domain.settings.DistanceUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationSource
 import cz.miroslavpasek.pigeonnavigator.domain.settings.SpeedUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.UdpLocationFormat
 
 /**
  * Maps [DistanceUnit] to a stable serialized name. Persisting the enum name (not the ordinal)
@@ -60,5 +62,27 @@ internal fun speedUnitFromSerialized(value: String?): SpeedUnit? = when (value) 
     "kilometers_per_hour" -> SpeedUnit.KilometersPerHour
     "miles_per_hour" -> SpeedUnit.MilesPerHour
     "meters_per_second" -> SpeedUnit.MetersPerSecond
+    else -> null
+}
+
+internal fun LocationSource.serializedName(): String = when (this) {
+    LocationSource.DeviceGps -> "device_gps"
+    LocationSource.Udp -> "udp"
+}
+
+internal fun locationSourceFromSerialized(value: String?): LocationSource? = when (value) {
+    "device_gps" -> LocationSource.DeviceGps
+    "udp" -> LocationSource.Udp
+    else -> null
+}
+
+internal fun UdpLocationFormat.serializedName(): String = when (this) {
+    UdpLocationFormat.Msfs -> "msfs"
+    UdpLocationFormat.XPlane -> "xplane"
+}
+
+internal fun udpLocationFormatFromSerialized(value: String?): UdpLocationFormat? = when (value) {
+    "msfs" -> UdpLocationFormat.Msfs
+    "xplane" -> UdpLocationFormat.XPlane
     else -> null
 }

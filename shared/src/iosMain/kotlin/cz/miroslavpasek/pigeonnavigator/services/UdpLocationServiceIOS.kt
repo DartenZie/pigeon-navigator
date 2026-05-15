@@ -35,6 +35,7 @@ import platform.posix.socket
 @OptIn(ExperimentalForeignApi::class)
 class UdpLocationServiceIOS(
     private val listenerConfig: UdpLocationListenerConfig,
+    private val parser: UdpLocationParser,
     private val dispatcherProvider: DispatcherProvider,
 ) : LocationService {
 
@@ -65,8 +66,7 @@ class UdpLocationServiceIOS(
 
                 when {
                     bytesRead > 0 -> {
-                        val payload = buffer.decodeToString(endIndex = bytesRead.toInt())
-                        val location: FlightLocation? = parseMsfsUdpLocationPacket(payload)
+                        val location: FlightLocation? = parser.parse(buffer, length = bytesRead.toInt())
                         if (location != null) {
                             NSLog(
                                 "[UdpLocationServiceIOS] Received UDP location lat=${location.latitude}, lon=${location.longitude}, alt=${location.altitudeMeters}"

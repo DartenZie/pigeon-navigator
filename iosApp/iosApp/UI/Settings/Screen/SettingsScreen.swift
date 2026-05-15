@@ -22,9 +22,14 @@ struct SettingsScreen: View {
                 distanceUnit: viewModel.distanceUnit,
                 altitudeUnit: viewModel.altitudeUnit,
                 speedUnit: viewModel.speedUnit,
+                locationSource: viewModel.locationSource,
+                udpLocationFormat: viewModel.udpLocationFormat,
                 ttcDraft: $ttcDraft,
                 onUnitsChange: { distance, altitude, speed in
                     viewModel.updateUnits(distance: distance, altitude: altitude, speed: speed)
+                },
+                onLocationChange: { source, udpFormat in
+                    viewModel.updateLocation(source: source, udpFormat: udpFormat)
                 },
                 onCommitTimeToCollision: { seconds in
                     viewModel.updateTimeToCollisionWarningSeconds(seconds)

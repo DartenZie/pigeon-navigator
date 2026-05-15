@@ -13,9 +13,12 @@ import cz.miroslavpasek.pigeonnavigator.data.terrain.di.terrainDataModule
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.Airspace
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationSource
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.UdpLocationFormat
 import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import cz.miroslavpasek.pigeonnavigator.platform.IosKeyValueSettingsStore
 import cz.miroslavpasek.pigeonnavigator.domain.aviation.GeoPoint
@@ -40,7 +43,6 @@ import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.di.terrainWarning
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningIntent
 import cz.miroslavpasek.pigeonnavigator.feature.terrainwarning.presentation.TerrainWarningState
 import cz.miroslavpasek.pigeonnavigator.services.LocationServiceConfig
-import cz.miroslavpasek.pigeonnavigator.services.LocationStreamSource
 import cz.miroslavpasek.pigeonnavigator.services.UdpLocationListenerConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineDispatcher
@@ -84,7 +86,6 @@ private val iosMapTapLookupModule = module {
 private val iosLocationModule = module {
     single {
         LocationServiceConfig(
-            source = LocationStreamSource.DeviceGps,
             udpListener = UdpLocationListenerConfig(
                 ipAddress = "0.0.0.0",
                 port = 49002,
@@ -243,6 +244,25 @@ class SettingsHandle(
                     maxDynamicZoomSpeedKmh = maxDynamicZoomSpeedKmh,
                     maxSpeedZoomOutDelta = maxSpeedZoomOutDelta,
                     bearingUpdateThresholdDegrees = bearingUpdateThresholdDegrees
+                )
+            )
+            onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)
+        }
+    }
+
+    /**
+     * Forwards location source and UDP format updates to the repository.
+     */
+    fun updateLocationPreferences(
+        source: LocationSource,
+        udpFormat: UdpLocationFormat,
+        onResult: (Boolean) -> Unit
+    ) {
+        scope.launch {
+            val result = repository.updateLocationPreferences(
+                LocationPreferences(
+                    source = source,
+                    udpFormat = udpFormat
                 )
             )
             onResult(result is cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult.Success)

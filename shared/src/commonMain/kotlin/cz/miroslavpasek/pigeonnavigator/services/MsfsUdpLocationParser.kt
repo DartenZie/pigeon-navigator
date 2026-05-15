@@ -6,6 +6,17 @@ private const val MSFS_PACKET_PREFIX = "XGPSMSFS"
 private const val MSFS_PACKET_FIELDS = 6
 private const val MSFS_PACKET_FIELDS_WITH_COMMA_DECIMAL_LONGITUDE = 7
 
+interface UdpLocationParser {
+    fun parse(packet: ByteArray, offset: Int = 0, length: Int = packet.size): FlightLocation?
+}
+
+object MsfsUdpLocationParser : UdpLocationParser {
+    override fun parse(packet: ByteArray, offset: Int, length: Int): FlightLocation? {
+        if (offset < 0 || length < 0 || offset + length > packet.size) return null
+        return parseMsfsUdpLocationPacket(packet.decodeToString(startIndex = offset, endIndex = offset + length))
+    }
+}
+
 /**
  * Parses UDP packets produced by msfs-2020-gps-link.
  *

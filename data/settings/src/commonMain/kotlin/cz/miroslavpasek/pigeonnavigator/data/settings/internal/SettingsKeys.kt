@@ -16,4 +16,6 @@ internal object SettingsKeys {
     const val MAX_DYNAMIC_ZOOM_SPEED_KMH = "app_settings.map.max_dynamic_zoom_speed_kmh"
     const val MAX_SPEED_ZOOM_OUT_DELTA = "app_settings.map.max_speed_zoom_out_delta"
     const val BEARING_UPDATE_THRESHOLD_DEGREES = "app_settings.map.bearing_update_threshold_degrees"
+    const val LOCATION_SOURCE = "app_settings.location.source"
+    const val UDP_LOCATION_FORMAT = "app_settings.location.udp_format"
 }

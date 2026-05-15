@@ -95,6 +95,10 @@ private class StubSettingsRepository(
     override suspend fun updateSearchPreferences(search: SearchPreferences): AppResult<Unit, Failure> = AppResult.Success(Unit)
 
     override suspend fun updateMapPreferences(map: MapPreferences): AppResult<Unit, Failure> = AppResult.Success(Unit)
+
+    override suspend fun updateLocationPreferences(
+        location: cz.miroslavpasek.pigeonnavigator.domain.settings.LocationPreferences
+    ): AppResult<Unit, Failure> = AppResult.Success(Unit)
 }
 
 private class ProjectedAirspaceRepository(

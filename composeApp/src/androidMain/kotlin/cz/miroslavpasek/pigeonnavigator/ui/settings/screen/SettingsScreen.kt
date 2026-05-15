@@ -36,6 +36,9 @@ fun SettingsScreen(
         onWarningChange = { newWarning ->
             scope.launch { repository.updateWarningPreferences(newWarning) }
         },
+        onLocationChange = { newLocation ->
+            scope.launch { repository.updateLocationPreferences(newLocation) }
+        },
         modifier = modifier,
     )
 }

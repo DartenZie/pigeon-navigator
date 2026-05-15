@@ -28,6 +28,10 @@ final class AppSettingsViewModelWrapper: ObservableObject {
     @Published var maxSpeedZoomOutDelta: Double = 2.5
     @Published var bearingUpdateThresholdDegrees: Double = 4.0
 
+    // Location preferences
+    @Published var locationSource: DomainLocationSource = DomainLocationSource.devicegps
+    @Published var udpLocationFormat: DomainUdpLocationFormat = DomainUdpLocationFormat.msfs
+
     init() {
         self.handle = SettingsHelper.resolve()
         handle.startSettings { [weak self] settings in
@@ -41,6 +45,8 @@ final class AppSettingsViewModelWrapper: ObservableObject {
             self.maxDynamicZoomSpeedKmh = settings.map.maxDynamicZoomSpeedKmh
             self.maxSpeedZoomOutDelta = settings.map.maxSpeedZoomOutDelta
             self.bearingUpdateThresholdDegrees = settings.map.bearingUpdateThresholdDegrees
+            self.locationSource = settings.location.source
+            self.udpLocationFormat = settings.location.udpFormat
         }
     }
 
@@ -108,6 +114,18 @@ final class AppSettingsViewModelWrapper: ObservableObject {
             maxSpeedZoomOutDelta: maxSpeedZoomOutDelta,
             bearingUpdateThresholdDegrees: degrees
         ) { _ in }
+    }
+
+    func updateLocationSource(_ source: DomainLocationSource) {
+        handle.updateLocationPreferences(source: source, udpFormat: udpLocationFormat) { _ in }
+    }
+
+    func updateUdpLocationFormat(_ format: DomainUdpLocationFormat) {
+        handle.updateLocationPreferences(source: locationSource, udpFormat: format) { _ in }
+    }
+
+    func updateLocation(source: DomainLocationSource, udpFormat: DomainUdpLocationFormat) {
+        handle.updateLocationPreferences(source: source, udpFormat: udpFormat) { _ in }
     }
 
     func dispose() {

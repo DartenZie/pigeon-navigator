@@ -54,4 +54,11 @@ interface AppSettingsRepository {
     suspend fun updateMapPreferences(
         map: MapPreferences
     ): AppResult<Unit, Failure>
+
+    /**
+     * Persists [location] and updates [settings] with the new value.
+     */
+    suspend fun updateLocationPreferences(
+        location: LocationPreferences
+    ): AppResult<Unit, Failure>
 }

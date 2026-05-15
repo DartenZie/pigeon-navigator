@@ -251,6 +251,13 @@ private class FakeAppSettingsRepository(
         mutableSettings.value = mutableSettings.value.copy(map = map)
         return AppResult.Success(Unit)
     }
+
+    override suspend fun updateLocationPreferences(
+        location: cz.miroslavpasek.pigeonnavigator.domain.settings.LocationPreferences
+    ): AppResult<Unit, Failure> {
+        mutableSettings.value = mutableSettings.value.copy(location = location)
+        return AppResult.Success(Unit)
+    }
 }
 
 private class TestDispatcherProvider(

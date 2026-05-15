@@ -8,10 +8,13 @@ import cz.miroslavpasek.pigeonnavigator.domain.settings.AltitudeUnit
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
 import cz.miroslavpasek.pigeonnavigator.domain.settings.DEFAULT_TIME_TO_COLLISION_WARNING_SECONDS
 import cz.miroslavpasek.pigeonnavigator.domain.settings.DistanceUnit
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationSource
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.SpeedUnit
 import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.UdpLocationFormat
 import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -326,6 +329,76 @@ class AppSettingsRepositoryImplTest {
         assertEquals(null, store.strings["app_settings.map.max_dynamic_zoom_speed_kmh"])
         assertEquals(SearchPreferences(), repository.settings.value.search)
         assertEquals(MapPreferences(), repository.settings.value.map)
+    }
+
+    @Test
+    fun loadsPersistedLocationPreferences() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val store = InMemoryKeyValueSettingsStore(
+            strings = mutableMapOf(
+                "app_settings.location.source" to "udp",
+                "app_settings.location.udp_format" to "xplane",
+            ),
+        )
+        val repository = AppSettingsRepositoryImpl(
+            store = store,
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            scope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(
+            LocationPreferences(
+                source = LocationSource.Udp,
+                udpFormat = UdpLocationFormat.XPlane,
+            ),
+            repository.settings.value.location
+        )
+    }
+
+    @Test
+    fun fallsBackToDefaultsForInvalidPersistedLocationPreferences() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val store = InMemoryKeyValueSettingsStore(
+            strings = mutableMapOf(
+                "app_settings.location.source" to "carrier_pigeon",
+                "app_settings.location.udp_format" to "unknown",
+            ),
+        )
+        val repository = AppSettingsRepositoryImpl(
+            store = store,
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            scope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(LocationPreferences(), repository.settings.value.location)
+    }
+
+    @Test
+    fun persistsAndEmitsUpdatedLocationPreferences() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val store = InMemoryKeyValueSettingsStore()
+        val repository = AppSettingsRepositoryImpl(
+            store = store,
+            dispatcherProvider = TestDispatcherProvider(dispatcher),
+            scope = CoroutineScope(SupervisorJob() + dispatcher),
+        )
+        advanceUntilIdle()
+
+        val newLocation = LocationPreferences(
+            source = LocationSource.Udp,
+            udpFormat = UdpLocationFormat.XPlane,
+        )
+        val result = repository.updateLocationPreferences(newLocation)
+        advanceUntilIdle()
+
+        assertTrue(result is AppResult.Success)
+        assertEquals(newLocation, repository.settings.value.location)
+        assertEquals("udp", store.strings["app_settings.location.source"])
+        assertEquals("xplane", store.strings["app_settings.location.udp_format"])
     }
 }
 

@@ -9,11 +9,17 @@ struct SettingsContent: View {
     let distanceUnit: DomainDistanceUnit
     let altitudeUnit: DomainAltitudeUnit
     let speedUnit: DomainSpeedUnit
+    let locationSource: DomainLocationSource
+    let udpLocationFormat: DomainUdpLocationFormat
     @Binding var ttcDraft: String
     let onUnitsChange: (
         _ distance: DomainDistanceUnit,
         _ altitude: DomainAltitudeUnit,
         _ speed: DomainSpeedUnit
+    ) -> Void
+    let onLocationChange: (
+        _ source: DomainLocationSource,
+        _ udpFormat: DomainUdpLocationFormat
     ) -> Void
     let onCommitTimeToCollision: (Int32) -> Void
 
@@ -29,6 +35,12 @@ struct SettingsContent: View {
             WarningSection(
                 draft: $ttcDraft,
                 onCommitSeconds: onCommitTimeToCollision
+            )
+
+            LocationSection(
+                source: locationSource,
+                udpFormat: udpLocationFormat,
+                onLocationChange: onLocationChange
             )
         }
     }

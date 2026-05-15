@@ -6,8 +6,10 @@ import cz.miroslavpasek.pigeonnavigator.core.util.result.AppResult
 import cz.miroslavpasek.pigeonnavigator.data.settings.internal.SettingsKeys
 import cz.miroslavpasek.pigeonnavigator.data.settings.internal.altitudeUnitFromSerialized
 import cz.miroslavpasek.pigeonnavigator.data.settings.internal.distanceUnitFromSerialized
+import cz.miroslavpasek.pigeonnavigator.data.settings.internal.locationSourceFromSerialized
 import cz.miroslavpasek.pigeonnavigator.data.settings.internal.serializedName
 import cz.miroslavpasek.pigeonnavigator.data.settings.internal.speedUnitFromSerialized
+import cz.miroslavpasek.pigeonnavigator.data.settings.internal.udpLocationFormatFromSerialized
 import cz.miroslavpasek.pigeonnavigator.domain.failure.Failure
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettings
 import cz.miroslavpasek.pigeonnavigator.domain.settings.AppSettingsRepository
@@ -24,6 +26,7 @@ import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_MINIMUM_SEARCH_QUERY
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_SEARCH_DEBOUNCE_MILLIS
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MIN_TIME_TO_COLLISION_WARNING_SECONDS
 import cz.miroslavpasek.pigeonnavigator.domain.settings.MapPreferences
+import cz.miroslavpasek.pigeonnavigator.domain.settings.LocationPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.SearchPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.UnitPreferences
 import cz.miroslavpasek.pigeonnavigator.domain.settings.WarningPreferences
@@ -206,6 +209,23 @@ class AppSettingsRepositoryImpl(
         }
     }
 
+    override suspend fun updateLocationPreferences(
+        location: LocationPreferences
+    ): AppResult<Unit, Failure> = writeMutex.withLock {
+        try {
+            withContext(dispatcherProvider.io) {
+                store.putString(SettingsKeys.LOCATION_SOURCE, location.source.serializedName())
+                store.putString(SettingsKeys.UDP_LOCATION_FORMAT, location.udpFormat.serializedName())
+            }
+            mutableSettings.value = mutableSettings.value.copy(location = location)
+            AppResult.Success(Unit)
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            throw cancellation
+        } catch (throwable: Throwable) {
+            AppResult.Failure(Failure.Unexpected)
+        }
+    }
+
     /**
      * Loads persisted values, falling back to defaults whenever a value is missing or invalid.
      *
@@ -265,6 +285,11 @@ class AppSettingsRepositoryImpl(
             ?.takeIf { it in MIN_BEARING_UPDATE_THRESHOLD_DEGREES..MAX_BEARING_UPDATE_THRESHOLD_DEGREES }
             ?: defaults.map.bearingUpdateThresholdDegrees
 
+        val source = locationSourceFromSerialized(store.getString(SettingsKeys.LOCATION_SOURCE))
+            ?: defaults.location.source
+        val udpFormat = udpLocationFormatFromSerialized(store.getString(SettingsKeys.UDP_LOCATION_FORMAT))
+            ?: defaults.location.udpFormat
+
         return AppSettings(
             units = UnitPreferences(
                 distance = distance,
@@ -282,6 +307,10 @@ class AppSettingsRepositoryImpl(
                 maxDynamicZoomSpeedKmh = maxZoomSpeed,
                 maxSpeedZoomOutDelta = zoomOutDelta,
                 bearingUpdateThresholdDegrees = bearingThreshold,
+            ),
+            location = LocationPreferences(
+                source = source,
+                udpFormat = udpFormat,
             ),
         )
     }

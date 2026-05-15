@@ -103,6 +103,7 @@ data class AppSettings(
     val warning: WarningPreferences = WarningPreferences(),
     val search: SearchPreferences = SearchPreferences(),
     val map: MapPreferences = MapPreferences(),
+    val location: LocationPreferences = LocationPreferences(),
 )
 
 /**
@@ -147,3 +148,21 @@ data class MapPreferences(
     val maxSpeedZoomOutDelta: Double = DEFAULT_MAX_SPEED_ZOOM_OUT_DELTA,
     val bearingUpdateThresholdDegrees: Double = DEFAULT_BEARING_UPDATE_THRESHOLD_DEGREES,
 )
+
+/**
+ * User-controllable source for aircraft location updates.
+ */
+data class LocationPreferences(
+    val source: LocationSource = LocationSource.DeviceGps,
+    val udpFormat: UdpLocationFormat = UdpLocationFormat.Msfs,
+)
+
+enum class LocationSource {
+    DeviceGps,
+    Udp,
+}
+
+enum class UdpLocationFormat {
+    Msfs,
+    XPlane,
+}

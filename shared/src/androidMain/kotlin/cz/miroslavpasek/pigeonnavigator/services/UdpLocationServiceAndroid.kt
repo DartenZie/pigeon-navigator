@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 class UdpLocationServiceAndroid(
     private val context: Context,
     private val listenerConfig: UdpLocationListenerConfig,
+    private val parser: UdpLocationParser,
     private val dispatcherProvider: DispatcherProvider,
 ) : LocationService {
 
@@ -51,8 +52,7 @@ class UdpLocationServiceAndroid(
                 val packet = DatagramPacket(buffer, buffer.size)
                 try {
                     socket.receive(packet)
-                    val payload = String(packet.data, packet.offset, packet.length, Charsets.UTF_8)
-                    val location = parseMsfsUdpLocationPacket(payload)
+                    val location = parser.parse(packet.data, packet.offset, packet.length)
                     if (location != null) {
                         Log.d(
                             "UdpLocationService",
@@ -60,7 +60,7 @@ class UdpLocationServiceAndroid(
                         )
                         trySend(location)
                     } else {
-                        Log.i("UdpLocationService", "Ignored UDP payload: $payload")
+                        Log.i("UdpLocationService", "Ignored UDP packet length=${packet.length}")
                     }
                 } catch (_: SocketException) {
                     if (!isActive) {
