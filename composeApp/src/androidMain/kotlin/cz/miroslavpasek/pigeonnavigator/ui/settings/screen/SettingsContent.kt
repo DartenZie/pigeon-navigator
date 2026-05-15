@@ -3,6 +3,7 @@ package cz.miroslavpasek.pigeonnavigator.ui.settings.screen
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -59,6 +60,7 @@ fun SettingsContent(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .navigationBarsPadding()
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = AppSpacing.md, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
