@@ -75,6 +75,30 @@ Or use the run configuration in Android Studio / Fleet.
 
 Open `iosApp/` in Xcode and run, or use the KMP run configuration in Fleet.
 
+## MSFS UDP Record/Replay
+
+PigeonNavigator listens for MSFS UDP location packets on port `49002`. A small
+stdlib-only Python helper can record the full UDP datagram stream with timestamps
+and replay it later at a configurable speed.
+
+Record from MSFS:
+
+```shell
+python3 tools/msfs_udp_record_replay.py record recordings/msfs-flight.jsonl --port 49002
+```
+
+Replay to a local simulator/app instance at normal speed:
+
+```shell
+python3 tools/msfs_udp_record_replay.py replay recordings/msfs-flight.jsonl --host 127.0.0.1 --port 49002
+```
+
+Replay twice as fast to a device running the app:
+
+```shell
+python3 tools/msfs_udp_record_replay.py replay recordings/msfs-flight.jsonl --host <device-ip> --port 49002 --speed 2
+```
+
 ## Architecture
 
 Each feature follows the **MVI** pattern with explicit types:
