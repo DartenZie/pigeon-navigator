@@ -26,6 +26,10 @@ BUFFER_SIZE = 65_535
 FORMAT_VERSION = 1
 
 
+def is_broadcast_host(host: str) -> bool:
+    return host == "255.255.255.255" or host.endswith(".255")
+
+
 def positive_float(value: str) -> float:
     parsed = float(value)
     if parsed <= 0:
@@ -157,6 +161,9 @@ def replay(args: argparse.Namespace) -> int:
     print(f"Replaying {input_path} -> {args.host}:{args.port} at {args.speed:g}x")
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        if args.broadcast or is_broadcast_host(args.host):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
         for relative_ns, payload in iter_packets(input_path):
             if previous_relative_ns is None:
                 delay_s = args.initial_delay
@@ -176,6 +183,22 @@ def replay(args: argparse.Namespace) -> int:
 
     print(f"Replayed {packets_sent} packet(s).")
     return 0
+
+
+def describe_os_error(exc: OSError) -> str:
+    message = str(exc)
+    winerror = getattr(exc, "winerror", None)
+    if winerror == 10013:
+        return (
+            f"{message}\n"
+            "WinError 10013 usually means Windows denied access to the UDP port. "
+            "If this happens while recording, check Windows excluded UDP port ranges "
+            "with: netsh interface ipv4 show excludedportrange protocol=udp. "
+            "If this happens while replaying to a broadcast address, pass --broadcast. "
+            "Also check that no other app is already listening on the same port and "
+            "allow Python through Windows Defender Firewall."
+        )
+    return message
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -200,6 +223,7 @@ def build_parser() -> argparse.ArgumentParser:
     replay_parser.add_argument("--speed", type=positive_float, default=1.0, help="playback speed multiplier, default 1")
     replay_parser.add_argument("--initial-delay", type=non_negative_float, default=0.0, help="delay before first packet in seconds")
     replay_parser.add_argument("--max-packets", type=positive_int, help="replay at most this many packets")
+    replay_parser.add_argument("--broadcast", action="store_true", help="allow sending to UDP broadcast addresses")
     replay_parser.set_defaults(func=replay)
 
     return parser
@@ -210,7 +234,10 @@ def main() -> int:
     args = parser.parse_args()
     try:
         return args.func(args)
-    except (OSError, ValueError) as exc:
+    except OSError as exc:
+        print(f"error: {describe_os_error(exc)}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

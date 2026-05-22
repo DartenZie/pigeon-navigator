@@ -99,6 +99,17 @@ Replay twice as fast to a device running the app:
 python3 tools/msfs_udp_record_replay.py replay recordings/msfs-flight.jsonl --host <device-ip> --port 49002 --speed 2
 ```
 
+On Windows, `WinError 10013` usually means Windows denied access to the UDP
+port. Make sure only one process listens on the selected port, allow Python in
+Windows Defender Firewall, try running the terminal as Administrator, or switch
+MSFS and PigeonNavigator to another UDP port. If the error happens while sending
+to a broadcast address such as `192.168.1.255`, add `--broadcast`. If it happens
+while recording, check whether Windows has reserved the port:
+
+```powershell
+netsh interface ipv4 show excludedportrange protocol=udp
+```
+
 ## Architecture
 
 Each feature follows the **MVI** pattern with explicit types:
